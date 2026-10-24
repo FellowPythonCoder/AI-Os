@@ -59,11 +59,13 @@ log "Builder VM: $VM · branch: $BRANCH"
 # ── Create / start the builder VM ────────────────────────────────────────────
 if ! limactl list --format '{{.Name}}' 2>/dev/null | grep -qx "$VM"; then
     log "Creating ARM64 Debian builder VM (one-time, downloads ~400 MB)…"
-    limactl create --name="$VM" --cpus=4 --memory=6 --disk=60 template://debian \
-      || limactl start --name="$VM" --cpus=4 --memory=6 --disk=60 template://debian
+    # --tty=false: Lima 2.x otherwise stops at an interactive "Proceed?" menu.
+    limactl create --tty=false --name="$VM" --cpus=4 --memory=6 --disk=60 template:debian \
+      || limactl create --tty=false --name="$VM" --cpus=4 --memory=6 --disk=60 template://debian \
+      || limactl start --tty=false --name="$VM" --cpus=4 --memory=6 --disk=60 template://debian
 fi
 log "Starting builder VM…"
-limactl start "$VM"
+limactl start --tty=false "$VM" 2>/dev/null || limactl start "$VM"
 
 guest() { limactl shell "$VM" -- bash -lc "$1"; }
 
