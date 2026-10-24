@@ -1,0 +1,7 @@
+[Sound Theme]
+Name=AURA
+Comment=AURA OS glass-bell sound theme
+Directories=stereo
+
+[stereo]
+OutputProfile=stereo

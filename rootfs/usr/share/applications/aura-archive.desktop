@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Archive
+Comment=Create and extract ZIP, TAR, 7z and other archives
+Exec=xarchiver %F
+Icon=aura-archive
+Terminal=false
+Categories=Utility;Archiving;Compression;
+StartupNotify=true
+MimeType=application/zip;application/x-tar;application/x-7z-compressed;application/gzip;application/x-bzip2;application/x-xz;application/x-rar;

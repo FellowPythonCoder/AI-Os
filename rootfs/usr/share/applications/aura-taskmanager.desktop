@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Task Manager
+Comment=See and control running processes
+Exec=xfce4-taskmanager
+Icon=aura-taskmanager
+Terminal=false
+Categories=System;Monitor;
+StartupNotify=true

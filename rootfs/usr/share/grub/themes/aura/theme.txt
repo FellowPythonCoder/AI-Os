@@ -1,0 +1,74 @@
+# AURA OS GRUB2 theme — midnight peaks.
+# bg.png is rendered from the default wallpaper by /usr/share/aura/render-boot-assets.sh.
+
+title-text: "AURA OS"
+title-font: "Inter Bold 28"
+title-color: "#eaf3fd"
+desktop-image: "bg.png"
+desktop-color: "#0a1730"
+terminal-font: "JetBrains Mono Regular 14"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%"
+terminal-height: "100%"
+terminal-border: "0"
+
++ boot_menu {
+    left = 27%
+    width = 46%
+    top = 34%
+    height = 42%
+    item_font = "Inter Regular 18"
+    item_color = "#c7daf2"
+    selected_item_font = "Inter Bold 18"
+    selected_item_color = "#ffffff"
+    item_height = 42
+    item_padding = 12
+    item_spacing = 8
+    selected_item_pixmap_style = "select_*.png"
+    item_icon_space = 12
+    icon_width = 28
+    icon_height = 28
+}
+
++ label {
+    top = 12%
+    left = 0
+    width = 100%
+    align = "center"
+    font = "Inter Bold 34"
+    color = "#eaf3fd"
+    text = "AURA OS"
+}
+
++ label {
+    top = 19%
+    left = 0
+    width = 100%
+    align = "center"
+    font = "Inter Regular 15"
+    color = "#9db4d0"
+    text = "A blue mountain desktop"
+}
+
++ progress_bar {
+    id = "__timeout__"
+    left = 37%
+    width = 26%
+    top = 84%
+    height = 8
+    fg_color = "#2f7fe0"
+    bg_color = "#5a719480"
+    border_color = "#8fc4f5"
+    show_text = false
+}
+
++ label {
+    top = 92%
+    left = 0
+    width = 100%
+    align = "center"
+    font = "Inter Regular 13"
+    color = "#9db4d0"
+    text = "Use the ↑ and ↓ keys to select an entry · Enter to boot · 'e' to edit"
+}

@@ -1,0 +1,1054 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+aura — the AURA OS command-line interface (heart of Celestia Shell).
+
+A real, working system tool: it manages themes, wallpapers, the dock,
+packages (APT/Flatpak), applications and session actions on AURA OS.
+
+Configuration: ~/.config/aura/config.json
+Environment overrides (mainly for testing):
+  AURA_CONFIG_DIR, AURA_THEMES_DIR, AURA_WALLPAPERS_DIR, AURA_HOME_THEMES
+"""
+import argparse
+import configparser
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+
+AURA_CLI_VERSION = "1.0.0"
+AURA_OS_VERSION = "1.0"
+AURA_CODENAME = "Aurora Peaks"
+
+# ----------------------------------------------------------------------------- paths
+HOME = os.path.expanduser("~")
+CONFIG_DIR = os.environ.get("AURA_CONFIG_DIR", os.path.join(HOME, ".config", "aura"))
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+HOME_THEMES = os.environ.get("AURA_HOME_THEMES", os.path.join(HOME, ".themes"))
+
+
+def _share_dir(*parts):
+    """Find AURA data both when installed (/usr/share) and in a source checkout."""
+    bases = []
+    if os.environ.get("AURA_SHARE_DIR"):
+        bases.append(os.environ["AURA_SHARE_DIR"])
+    bases.append("/usr/share")
+    bases.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "..", "share"))
+    for base in bases:
+        p = os.path.normpath(os.path.join(base, *parts))
+        if os.path.isdir(p):
+            return p
+    return os.path.normpath(os.path.join("/usr/share", *parts))
+
+
+def themes_dir():
+    return os.environ.get("AURA_THEMES_DIR", _share_dir("themes"))
+
+
+def wallpapers_dir():
+    return os.environ.get("AURA_WALLPAPERS_DIR", _share_dir("backgrounds", "aura"))
+
+
+# ----------------------------------------------------------------------------- output
+USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+
+def c(text, code):
+    return f"\033[{code}m{text}\033[0m" if USE_COLOR else text
+
+
+def blue(t):  return c(t, "1;36")
+def bold(t):  return c(t, "1")
+def dim(t):   return c(t, "2")
+def ok(t):    print(f"{c('✓', '1;32')} {t}")
+def warn(t):  print(f"{c('!', '1;33')} {t}")
+def err(t):   print(f"{c('✗', '1;31')} {t}", file=sys.stderr)
+def info(t):  print(f"{blue('▸')} {t}")
+
+
+# ----------------------------------------------------------------------------- config
+ACCENTS = {
+    "ocean":    ("#2f7fe0", "#1d5fc0"),
+    "electric": ("#1e90ff", "#0f6fe0"),
+    "glacier":  ("#38b6e8", "#1d92cc"),
+    "midnight": ("#3b5bdb", "#2b44b3"),
+    "cyan":     ("#18b7c4", "#0e95a3"),
+    "teal":     ("#14b8a6", "#0d9488"),
+    "violet":   ("#7c5cd6", "#6343bd"),
+    "blue":     ("#2f7fe0", "#1d5fc0"),   # alias of ocean (aura theme blue)
+}
+
+DEFAULT_CONFIG = {
+    "theme_mode": "dark",
+    "accent": "ocean",
+    "accent_hex": ACCENTS["ocean"][0],
+    "wallpaper": "aura-midnight-peaks.jpg",
+    "dock": {"size": 52, "position": "bottom", "zoom": True, "autohide": False},
+    "animations": True,
+    "first_run_done": False,
+}
+
+
+def load_config():
+    cfg = json.loads(json.dumps(DEFAULT_CONFIG))
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as fh:
+            user = json.load(fh)
+        for k, v in user.items():
+            if k == "dock" and isinstance(v, dict):
+                cfg["dock"].update(v)
+            else:
+                cfg[k] = v
+    except (OSError, json.JSONDecodeError):
+        pass
+    return cfg
+
+
+def save_config(cfg):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)
+        fh.write("\n")
+
+
+# ----------------------------------------------------------------------------- helpers
+def run(cmd, dry_run=False, capture=False):
+    """Run a command list; print it first when dry-running."""
+    printable = " ".join(cmd)
+    if dry_run:
+        print(dim(f"[dry-run] {printable}"))
+        return 0, ""
+    if capture:
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    return subprocess.call(cmd), ""
+
+
+def have(binary):
+    return shutil.which(binary) is not None
+
+
+def sudo_prefix():
+    if os.geteuid() == 0:
+        return []
+    if have("sudo"):
+        return ["sudo"]
+    return None
+
+
+def xfconf_set(channel, prop, ptype, value, dry_run=False):
+    if not have("xfconf-query"):
+        if not dry_run:
+            warn(f"xfconf-query not found — skipped setting {channel}{prop} "
+                 "(preference still saved).")
+        return False
+    cmd = ["xfconf-query", "-c", channel, "-p", prop,
+           "-t", ptype, "-s", str(value), "--create"]
+    rc, _ = run(cmd, dry_run=dry_run, capture=True)
+    return rc == 0
+
+
+def gsettings_set(schema, key, value, dry_run=False):
+    if not have("gsettings"):
+        return False
+    rc, _ = run(["gsettings", "set", schema, key, value], dry_run=dry_run, capture=True)
+    return rc == 0
+
+
+def apply_gtk_theme(mode, accent_hex, dry_run=False):
+    """Create/refresh the per-user AuraCustom theme with the chosen accent."""
+    src_name = "AuraDark" if mode == "dark" else "AuraLight"
+    src = os.path.join(themes_dir(), src_name)
+    dst = os.path.join(HOME_THEMES, "AuraCustom")
+    if not os.path.isdir(src):
+        warn(f"Theme source {src} not found; keeping system theme name only.")
+        theme_name = src_name
+    else:
+        theme_name = "AuraCustom"
+        if dry_run:
+            print(dim(f"[dry-run] copy {src} -> {dst} and write accent.css ({accent_hex})"))
+        else:
+            if os.path.isdir(dst):
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst, symlinks=False)
+            darker = ACCENTS.get(load_config().get("accent", "ocean"),
+                                  (accent_hex, accent_hex))[1]
+            accent_css = (
+                "/* Generated by aura — accent colors */\n"
+                f"@define-color accent_color {accent_hex};\n"
+                f"@define-color accent_bg_color {accent_hex};\n"
+                f"@define-color accent_dark {darker};\n"
+            )
+            for sub in ("gtk-3.0", "gtk-4.0"):
+                d = os.path.join(dst, sub)
+                if os.path.isdir(d):
+                    with open(os.path.join(d, "accent.css"), "w", encoding="utf-8") as fh:
+                        fh.write(accent_css)
+            # rename inside index.theme
+            idx = os.path.join(dst, "index.theme")
+            if os.path.isfile(idx):
+                with open(idx, encoding="utf-8") as fh:
+                    txt = fh.read()
+                txt = txt.replace(f"Name={src_name}", "Name=AuraCustom")
+                with open(idx, "w", encoding="utf-8") as fh:
+                    fh.write(txt)
+    xfconf_set("xsettings", "/Net/ThemeName", "string", theme_name, dry_run)
+    xfconf_set("xfwm4", "/general/theme", "string", theme_name, dry_run)
+    gsettings_set("org.gnome.desktop.interface", "gtk-theme", theme_name, dry_run)
+    gsettings_set("org.gnome.desktop.interface", "color-scheme",
+                  "prefer-dark" if mode == "dark" else "prefer-light", dry_run)
+    return theme_name
+
+
+def set_wallpaper(path, dry_run=False):
+    """Set the Xfce desktop wallpaper on every monitor/workspace."""
+    if not have("xfconf-query"):
+        if not dry_run:
+            warn("xfconf-query not found — wallpaper preference saved only.")
+        return
+    _, out = run(["xfconf-query", "-c", "xfce4-desktop", "-l"],
+                 dry_run=False, capture=True)
+    props = [l.strip() for l in out.splitlines() if l.strip().endswith("/last-image")]
+    if not props:
+        props = ["/backdrop/screen0/monitor0/workspace0/last-image"]
+    for p in props:
+        xfconf_set("xfce4-desktop", p, "string", path, dry_run)
+        style_prop = p.rsplit("/", 1)[0] + "/image-style"
+        xfconf_set("xfce4-desktop", style_prop, "int", "5", dry_run)  # 5 = zoomed/fill
+    gsettings_set("org.gnome.desktop.background", "picture-uri",
+                  f"file://{path}", dry_run)
+    gsettings_set("org.gnome.desktop.background", "picture-uri-dark",
+                  f"file://{path}", dry_run)
+    if have("xfdesktop") and not dry_run:
+        subprocess.run(["xfdesktop", "--reload"], capture_output=True)
+
+
+def apply_dock(dock, dry_run=False):
+    schema = "net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/"
+    gsettings_set(schema, "icon-size", str(dock["size"]), dry_run)
+    gsettings_set(schema, "position", dock["position"], dry_run)
+    gsettings_set(schema, "zoom-enabled", str(dock["zoom"]).lower(), dry_run)
+    gsettings_set(schema, "zoom-percent", "150", dry_run)
+    gsettings_set(schema, "hide-mode",
+                  "auto" if dock["autohide"] else "none", dry_run)
+    gsettings_set(schema, "theme", "Aura", dry_run)
+
+
+# ----------------------------------------------------------------------------- system info
+LOGO = r"""
+            /\
+           /  \      /\
+          / /\ \    /  \     /\
+         / /  \ \__/    \   /  \
+        / /    \         \_/    \
+       /  ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾    \
+      /  A U R A   O S              \
+"""
+
+
+def read_os_release():
+    data = {}
+    for p in ("/etc/os-release", "/usr/lib/os-release"):
+        if os.path.isfile(p):
+            with open(p, encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    if "=" in line:
+                        k, v = line.rstrip("\n").split("=", 1)
+                        data[k] = v.strip('"')
+            break
+    return data
+
+
+def mem_info():
+    info = {}
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) >= 2:
+                    info[parts[0].rstrip(":")] = int(parts[1])  # KiB
+    except OSError:
+        pass
+    total = info.get("MemTotal", 0) / 1048576
+    avail = info.get("MemAvailable", 0) / 1048576
+    return total, total - avail
+
+
+def detect_virt():
+    if have("systemd-detect-virt"):
+        rc, out = run(["systemd-detect-virt"], capture=True)
+        v = out.strip()
+        if rc == 0 and v and v != "none":
+            return v
+    try:
+        with open("/sys/devices/virtual/dmi/id/product_name",
+                  encoding="utf-8", errors="replace") as fh:
+            p = fh.read().strip()
+        if p and p.lower() not in ("none", "to be filled by o.e.m."):
+            return p
+    except OSError:
+        pass
+    return "bare metal / unknown"
+
+
+def cpu_model():
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if line.lower().startswith(("model name", "hardware", "cpu model")):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return platform.machine()
+
+
+def system_data():
+    osr = read_os_release()
+    total, used = mem_info()
+    try:
+        st = os.statvfs("/")
+        disk_total = st.f_blocks * st.f_frsize / 1e9
+        disk_free = st.f_bavail * st.f_frsize / 1e9
+    except OSError:
+        disk_total = disk_free = 0
+    uptime = ""
+    try:
+        with open("/proc/uptime", encoding="utf-8") as fh:
+            secs = int(float(fh.read().split()[0]))
+        uptime = f"{secs // 3600}h {(secs % 3600) // 60}m"
+    except (OSError, ValueError, IndexError):
+        pass
+    return {
+        "os": osr.get("PRETTY_NAME", "AURA OS"),
+        "os_id": osr.get("ID", ""),
+        "os_version": osr.get("VERSION_ID", ""),
+        "based_on": osr.get("AURA_BASED_ON", osr.get("ID_LIKE", "")),
+        "kernel": platform.release(),
+        "arch": platform.machine(),
+        "cpu": cpu_model(),
+        "cpu_cores": os.cpu_count(),
+        "ram_total_gib": round(total, 2),
+        "ram_used_gib": round(used, 2),
+        "disk_total_gb": round(disk_total, 1),
+        "disk_used_gb": round(disk_total - disk_free, 1),
+        "uptime": uptime,
+        "virt": detect_virt(),
+        "desktop": os.environ.get("XDG_CURRENT_DESKTOP", ""),
+        "session": os.environ.get("XDG_SESSION_TYPE", ""),
+        "user": os.environ.get("USER", ""),
+        "hostname": platform.node(),
+        "aura_cli": AURA_CLI_VERSION,
+    }
+
+
+# ----------------------------------------------------------------------------- commands
+def cmd_help(_args):
+    print(f"""{blue('🏔  AURA OS')} — command guide  {dim('(Celestia Shell)')}
+
+{bold('Getting around')}
+  aura fetch                 Show the AURA logo and a system summary
+  aura system                Detailed system & virtual-machine information
+  aura apps                  List installed applications
+  aura open <app|file|url>   Open an app, file or web address
+  aura settings              Open AURA Settings
+  aura tutorial              Interactive Celestia Shell tutorial
+
+{bold('Make it yours')}
+  aura theme light|dark      Switch between light and dark appearance
+  aura theme accent <name>   Accent color: {', '.join(k for k in ACCENTS if k != 'blue')}
+  aura theme blue            Shortcut for the classic AURA blue accent
+  aura wallpaper list        Show available wallpapers
+  aura wallpaper set <name>  Set the desktop wallpaper
+  aura dock size 60          Resize the dock (also: position, zoom, autohide)
+
+{bold('Software')}  {dim('(real APT/Flatpak package management)')}
+  aura search blender        Search available packages
+  aura install firefox       Install a package          aura remove <pkg>
+  aura update                Refresh package lists & show available updates
+  aura upgrade               Install all system updates
+  aura clean                 Preview / run safe system cleanup
+
+{bold('Care & session')}
+  aura doctor                Run health checks (disk, network, VM tools…)
+  aura backup                Open the backup tool (Timeshift)
+  aura session lock          lock | logout | suspend | reboot | shutdown
+
+{bold('Good to know')}
+  • Everything here is real: standard Linux tools (apt, git, python3, ssh…)
+    work exactly as usual in Celestia Shell.
+  • Add --dry-run to theme/wallpaper/dock/install commands to preview actions.
+  • Full guide: /usr/share/doc/aura/CELESTIA.md  ·  aura <command> --help
+""")
+
+
+def cmd_version(_args):
+    print(f"aura {AURA_CLI_VERSION} — AURA OS {AURA_OS_VERSION} “{AURA_CODENAME}”")
+
+
+def cmd_fetch(_args):
+    d = system_data()
+    lines = [
+        f"{blue(d['user'] + '@' + d['hostname'])}",
+        "─" * 28,
+        f"{bold('OS:')}      {d['os']} ({d['arch']})",
+        f"{bold('Kernel:')}  {d['kernel']}",
+        f"{bold('CPU:')}     {d['cpu']} × {d['cpu_cores']}",
+        f"{bold('Memory:')}  {d['ram_used_gib']:.1f} / {d['ram_total_gib']:.1f} GiB (guest)",
+        f"{bold('Disk:')}    {d['disk_used_gb']:.0f} / {d['disk_total_gb']:.0f} GB",
+        f"{bold('Uptime:')}  {d['uptime']}",
+        f"{bold('Machine:')} {d['virt']}",
+    ]
+    logo = LOGO.strip("\n").splitlines()
+    width = max(len(l) for l in logo)
+    for i in range(max(len(logo), len(lines))):
+        left = blue(logo[i].ljust(width)) if i < len(logo) else " " * width
+        right = lines[i] if i < len(lines) else ""
+        print(f"{left}  {right}")
+
+
+def cmd_system(args):
+    d = system_data()
+    if args.json:
+        print(json.dumps(d, indent=2))
+        return
+    print(f"{blue('🏔  AURA OS — System Information')}\n")
+    rows = [
+        ("Operating system", d["os"]),
+        ("Based on", d["based_on"] or "—"),
+        ("Kernel", d["kernel"]),
+        ("Architecture", d["arch"]),
+        ("Processor", f"{d['cpu']} ({d['cpu_cores']} cores)"),
+        ("Guest memory", f"{d['ram_used_gib']:.1f} GiB used of {d['ram_total_gib']:.1f} GiB"),
+        ("Disk (/)", f"{d['disk_used_gb']:.0f} GB used of {d['disk_total_gb']:.0f} GB"),
+        ("Uptime", d["uptime"]),
+        ("Virtualization", d["virt"]),
+        ("Desktop session", (d["desktop"] + " " + d["session"]).strip() or "—"),
+        ("aura CLI", AURA_CLI_VERSION),
+    ]
+    for k, v in rows:
+        print(f"  {bold(k + ':'):24} {v}")
+    print(dim("\n  Note: memory shown is the RAM allocated to this virtual machine\n"
+              "  in UTM — not your Mac's total physical memory. Change it in\n"
+              "  UTM ▸ (your VM) ▸ Edit ▸ System ▸ Memory while the VM is off."))
+
+
+def desktop_files():
+    dirs = [os.path.join(HOME, ".local", "share", "applications"),
+            "/usr/local/share/applications", "/usr/share/applications",
+            _share_dir("applications")]
+    seen, apps = set(), []
+    for d in dirs:
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
+            if not fn.endswith(".desktop") or fn in seen:
+                continue
+            seen.add(fn)
+            cp = configparser.ConfigParser(interpolation=None, strict=False)
+            cp.optionxform = str
+            try:
+                cp.read(os.path.join(d, fn), encoding="utf-8")
+                e = cp["Desktop Entry"]
+            except (configparser.Error, KeyError, UnicodeDecodeError, OSError):
+                continue
+            if e.get("Type") != "Application" or e.get("NoDisplay", "").lower() == "true":
+                continue
+            apps.append({"id": fn[:-8], "name": e.get("Name", fn[:-8]),
+                         "exec": e.get("Exec", ""), "comment": e.get("Comment", ""),
+                         "file": os.path.join(d, fn)})
+    return sorted(apps, key=lambda a: a["name"].lower())
+
+
+def cmd_apps(args):
+    apps = desktop_files()
+    if args.search:
+        q = args.search.lower()
+        apps = [a for a in apps if q in a["name"].lower()
+                or q in a["id"].lower() or q in a["comment"].lower()]
+    if args.json:
+        print(json.dumps(apps, indent=2))
+        return
+    if not apps:
+        warn("No applications found.")
+        return
+    print(f"{bold(f'{len(apps)} applications')}\n")
+    for a in apps:
+        print(f"  {blue(a['id']):38} {a['name']}")
+    print(dim("\nOpen one with:  aura open <id or name>"))
+
+
+def cmd_open(args):
+    target = " ".join(args.target).strip()
+    if not target:
+        err("Usage: aura open <app, file or URL>")
+        return 2
+    # URL or existing path → xdg-open
+    if re.match(r"^(https?|ftp)://", target) or os.path.exists(os.path.expanduser(target)):
+        rc, _ = run(["xdg-open", os.path.expanduser(target)], dry_run=args.dry_run)
+        return rc
+    apps = desktop_files()
+    low = target.lower()
+    match = next((a for a in apps if a["id"].lower() == low
+                  or a["name"].lower() == low), None) \
+        or next((a for a in apps if low in a["name"].lower()
+                 or low in a["id"].lower()), None)
+    if match:
+        info(f"Opening {match['name']}…")
+        if args.dry_run:
+            print(dim(f"[dry-run] gtk-launch {match['id']}"))
+            return 0
+        if have("gtk-launch"):
+            subprocess.Popen(["gtk-launch", match["id"]],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return 0
+        exe = re.sub(r"%[a-zA-Z]", "", match["exec"]).strip().split()
+        if exe:
+            subprocess.Popen(exe, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return 0
+    err(f"No application matches “{target}”. Try: aura apps")
+    return 1
+
+
+def cmd_settings(args):
+    page = args.page or ""
+    if have("aura-settings"):
+        info("Opening AURA Settings…")
+        if not args.dry_run:
+            subprocess.Popen(["aura-settings"] + ([page] if page else []),
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            print(dim(f"[dry-run] aura-settings {page}"))
+    elif have("xfce4-settings-manager"):
+        info("Opening Settings Manager…")
+        if not args.dry_run:
+            subprocess.Popen(["xfce4-settings-manager"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        err("No settings application found.")
+        return 1
+    return 0
+
+
+def cmd_theme(args):
+    cfg = load_config()
+    action = args.action or "show"
+    if action == "show":
+        print(f"  Mode:    {cfg['theme_mode']}")
+        print(f"  Accent:  {cfg['accent']} ({cfg['accent_hex']})")
+        print(f"  Config:  {CONFIG_FILE}")
+        return 0
+    if action == "list":
+        print(bold("Modes:") + "  light, dark, auto (follows light; reserved)")
+        print(bold("Accents:"))
+        for name, (hexv, _) in ACCENTS.items():
+            if name == "blue":
+                continue
+            mark = "●" if name == cfg["accent"] else "○"
+            print(f"  {mark} {name:10} {hexv}")
+        print(dim("\nCustom colors work too:  aura theme accent \"#ff8800\""))
+        return 0
+    if action == "accent":
+        if not args.value:
+            print(f"Current accent: {cfg['accent']} ({cfg['accent_hex']})")
+            return 0
+        val = args.value.lower()
+        if val in ACCENTS:
+            cfg["accent"], cfg["accent_hex"] = val, ACCENTS[val][0]
+        elif re.fullmatch(r"#[0-9a-f]{6}", val):
+            cfg["accent"], cfg["accent_hex"] = "custom", val
+        else:
+            err(f"Unknown accent “{args.value}”. Try: aura theme list")
+            return 1
+        if not args.dry_run:
+            save_config(cfg)
+        apply_gtk_theme(cfg["theme_mode"], cfg["accent_hex"], args.dry_run)
+        ok(f"Accent set to {cfg['accent']} ({cfg['accent_hex']}).")
+        return 0
+    if action == "reset":
+        cfg = json.loads(json.dumps(DEFAULT_CONFIG))
+        if not args.dry_run:
+            save_config(cfg)
+        apply_gtk_theme(cfg["theme_mode"], cfg["accent_hex"], args.dry_run)
+        ok("Theme restored to AURA defaults.")
+        return 0
+    # direct values: light/dark/auto or an accent name (e.g. "aura theme blue")
+    if action in ("light", "dark"):
+        cfg["theme_mode"] = action
+        if not args.dry_run:
+            save_config(cfg)
+        name = apply_gtk_theme(action, cfg["accent_hex"], args.dry_run)
+        ok(f"{action.capitalize()} theme applied ({name}).")
+        return 0
+    if action == "auto":
+        cfg["theme_mode"] = "dark"
+        if not args.dry_run:
+            save_config(cfg)
+        apply_gtk_theme("dark", cfg["accent_hex"], args.dry_run)
+        ok("Automatic theme enabled (dark during this release; follows your accent).")
+        return 0
+    if action in ACCENTS:
+        args.value = action
+        args.action = "accent"
+        return cmd_theme(args)
+    err(f"Unknown theme action “{action}”. Try: aura theme list")
+    return 1
+
+
+def cmd_wallpaper(args):
+    cfg = load_config()
+    wdir = wallpapers_dir()
+    files = sorted(f for f in os.listdir(wdir)
+                   if f.lower().endswith((".jpg", ".jpeg", ".png"))) \
+        if os.path.isdir(wdir) else []
+    action = args.action or "show"
+    if action == "list":
+        if not files:
+            warn(f"No wallpapers found in {wdir}")
+            return 1
+        for f in files:
+            mark = "●" if f == cfg["wallpaper"] else "○"
+            print(f"  {mark} {os.path.splitext(f)[0]}")
+        print(dim(f"\nFolder: {wdir} — drop your own images in ~/Pictures and use a path."))
+        return 0
+    if action == "show":
+        print(f"Current wallpaper: {cfg['wallpaper']}")
+        return 0
+    if action == "set":
+        if not args.value:
+            err("Usage: aura wallpaper set <name|path>")
+            return 2
+        val = args.value
+        path = None
+        if os.path.isfile(os.path.expanduser(val)):
+            path = os.path.abspath(os.path.expanduser(val))
+        else:
+            for f in files:
+                if f == val or os.path.splitext(f)[0] == val:
+                    path = os.path.join(wdir, f)
+                    break
+        if not path:
+            err(f"Wallpaper “{val}” not found. Try: aura wallpaper list")
+            return 1
+        cfg["wallpaper"] = os.path.basename(path) \
+            if os.path.dirname(path) == wdir else path
+        if not args.dry_run:
+            save_config(cfg)
+            set_wallpaper(path)
+        else:
+            print(dim(f"[dry-run] set wallpaper to {path}"))
+        ok(f"Wallpaper set to {os.path.basename(path)}.")
+        return 0
+    err(f"Unknown wallpaper action “{action}”.")
+    return 1
+
+
+def cmd_dock(args):
+    cfg = load_config()
+    dock = cfg["dock"]
+    action = args.action or "show"
+    if action == "show":
+        print(f"  Size:      {dock['size']} px")
+        print(f"  Position:  {dock['position']}")
+        print(f"  Zoom:      {'on' if dock['zoom'] else 'off'}")
+        print(f"  Auto-hide: {'on' if dock['autohide'] else 'off'}")
+        return 0
+    if action == "size":
+        try:
+            dock["size"] = max(24, min(128, int(args.value)))
+        except (TypeError, ValueError):
+            err("Usage: aura dock size <24-128>")
+            return 2
+    elif action == "position":
+        if args.value not in ("bottom", "left", "right", "top"):
+            err("Position must be bottom, left, right or top.")
+            return 2
+        dock["position"] = args.value
+    elif action in ("zoom", "autohide"):
+        if args.value not in ("on", "off"):
+            err(f"Usage: aura dock {action} on|off")
+            return 2
+        dock[action] = args.value == "on"
+    else:
+        err(f"Unknown dock action “{action}”.")
+        return 1
+    if not args.dry_run:
+        save_config(cfg)
+    apply_dock(dock, args.dry_run)
+    ok("Dock updated.")
+    return 0
+
+
+# ----------------------------------------------------------------------------- packages
+def pkg_manager_cmd(action, packages, yes):
+    if not have("apt-get"):
+        err("apt-get not found — AURA OS package commands need a Debian-based system.")
+        return None
+    pre = sudo_prefix()
+    if pre is None:
+        err("Administrator rights required (sudo not available).")
+        return None
+    cmd = pre + ["apt-get", action]
+    if yes:
+        cmd.append("-y")
+    cmd += packages
+    return cmd
+
+
+def cmd_install(args):
+    if args.flatpak:
+        if not have("flatpak"):
+            err("Flatpak is not installed. Install it with: aura install flatpak")
+            return 1
+        for pkg in args.packages:
+            info(f"Installing {pkg} from Flathub…")
+            cmd = ["flatpak", "install", "-y", "flathub", pkg]
+            rc, _ = run(cmd, dry_run=args.dry_run)
+            if rc != 0:
+                return rc
+        ok("Done.")
+        return 0
+    cmd = pkg_manager_cmd("install", args.packages, args.yes)
+    if cmd is None:
+        return 1
+    info("This will install: " + ", ".join(args.packages) +
+         "  (you may be asked for your password)")
+    rc, _ = run(cmd, dry_run=args.dry_run)
+    if rc == 0 and not args.dry_run:
+        ok("Installed " + ", ".join(args.packages))
+    return rc
+
+
+def cmd_remove(args):
+    cmd = pkg_manager_cmd("remove", args.packages, args.yes)
+    if cmd is None:
+        return 1
+    rc, _ = run(cmd, dry_run=args.dry_run)
+    return rc
+
+
+def cmd_search(args):
+    query = " ".join(args.query)
+    if not have("apt-cache"):
+        err("apt-cache not found.")
+        return 1
+    rc, out = run(["apt-cache", "search", "--names-only", query], capture=True)
+    lines = [l for l in out.splitlines() if " - " in l]
+    if not lines:
+        warn(f"No packages match “{query}”.")
+        print(dim("Tip: package names are lowercase, e.g.  aura search image editor"))
+        return 1
+    shown = lines[:40]
+    for l in shown:
+        name, desc = l.split(" - ", 1)
+        print(f"  {blue(name):44} {desc[:70]}")
+    if len(lines) > len(shown):
+        print(dim(f"…and {len(lines) - len(shown)} more. Refine your search to see fewer."))
+    print(dim("\nInstall with:  aura install <name>"))
+    return 0
+
+
+def cmd_update(args):
+    cmd = pkg_manager_cmd("update", [], False)
+    if cmd is None:
+        return 1
+    info("Refreshing package lists…")
+    rc, _ = run(cmd, dry_run=args.dry_run)
+    if rc != 0:
+        return rc
+    if not args.dry_run and have("apt"):
+        _, out = run(["apt", "list", "--upgradable"], capture=True)
+        ups = [l for l in out.splitlines() if "/" in l]
+        if ups:
+            print(f"\n{bold(str(len(ups)) + ' updates available:')}")
+            for l in ups[:15]:
+                print("  " + l.split()[0])
+            print(dim("\nInstall them with:  aura upgrade"))
+        else:
+            ok("AURA OS is up to date.")
+    return 0
+
+
+def cmd_upgrade(args):
+    cmd = pkg_manager_cmd("upgrade", [], args.yes)
+    if cmd is None:
+        return 1
+    info("Installing all available updates…")
+    rc, _ = run(cmd, dry_run=args.dry_run)
+    if rc == 0 and not args.dry_run:
+        ok("System upgraded.")
+    return rc
+
+
+def _du(path):
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
+def cmd_clean(args):
+    cache = _du(os.path.expanduser("~/.cache"))
+    trash = _du(os.path.expanduser("~/.local/share/Trash"))
+    print(f"{bold('Safe cleanup preview')}\n")
+    print(f"  User cache (~/.cache):        {cache / 1e6:8.0f} MB")
+    print(f"  Trash:                        {trash / 1e6:8.0f} MB")
+    print("  APT package cache & unused dependencies: checked with apt below.")
+    print(dim("\nNothing has been deleted yet."))
+    if not args.yes:
+        print(dim("Run  aura clean --yes  to empty Trash and run "
+                  "apt-get autoclean/autoremove."))
+        return 0
+    trash_dir = os.path.expanduser("~/.local/share/Trash")
+    for sub in ("files", "info"):
+        p = os.path.join(trash_dir, sub)
+        if os.path.isdir(p):
+            shutil.rmtree(p, ignore_errors=True)
+            os.makedirs(p, exist_ok=True)
+    ok("Trash emptied.")
+    for action in ("autoclean", "autoremove"):
+        cmd = pkg_manager_cmd(action, [], True)
+        if cmd:
+            run(cmd, dry_run=args.dry_run)
+    if have("journalctl"):
+        pre = sudo_prefix() or []
+        run(pre + ["journalctl", "--vacuum-size=100M"], dry_run=args.dry_run)
+    ok("Cleanup complete.")
+    return 0
+
+
+def cmd_doctor(args):
+    print(f"{blue('🏔  AURA Doctor')}\n")
+    good = True
+    d = system_data()
+    free_gb = d["disk_total_gb"] - d["disk_used_gb"]
+    if free_gb < 2:
+        warn(f"Low disk space: {free_gb:.1f} GB free. Try: aura clean")
+        good = False
+    else:
+        ok(f"Disk space healthy ({free_gb:.0f} GB free)")
+    if d["ram_total_gib"] and d["ram_used_gib"] / max(d["ram_total_gib"], 0.01) > 0.92:
+        warn("Memory nearly full — consider giving the VM more RAM in UTM.")
+        good = False
+    else:
+        ok(f"Memory OK ({d['ram_used_gib']:.1f} / {d['ram_total_gib']:.1f} GiB guest)")
+    net = False
+    try:
+        import socket
+        socket.create_connection(("1.1.1.1", 53), timeout=3).close()
+        net = True
+    except OSError:
+        pass
+    (ok if net else warn)("Internet reachable" if net
+                          else "No internet — check UTM network mode (Shared/NAT).")
+    good = good and net
+    for tool, why in (("spice-vdagent", "clipboard & display resize with the Mac"),
+                      ("qemu-ga", "UTM guest agent")):
+        if have(tool):
+            ok(f"{tool} installed ({why})")
+        else:
+            warn(f"{tool} missing — {why} may not work. "
+                 f"Fix: aura install {tool if tool == 'spice-vdagent' else 'qemu-guest-agent'}")
+    if have("systemctl"):
+        rc, out = run(["systemctl", "is-system-running"], capture=True)
+        state = out.strip().splitlines()[0].split(":")[0].strip() if out.strip() else ""
+        if state in ("running", "degraded"):
+            (ok if state == "running" else warn)(f"System services: {state}")
+        else:
+            warn(f"System services: {state or 'unknown'}")
+    if d["arch"] not in ("aarch64", "arm64", "x86_64"):
+        warn(f"Unusual architecture: {d['arch']}")
+    else:
+        ok(f"Architecture: {d['arch']}")
+    print(dim("\naura doctor never changes anything — it only reports."))
+    return 0 if good else 1
+
+
+def cmd_tutorial(args):
+    for cand in ("/usr/bin/celestia-tutorial",
+                 os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "celestia-tutorial")):
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return subprocess.call([cand])
+    err("celestia-tutorial not found.")
+    return 1
+
+
+def cmd_backup(args):
+    if have("timeshift-gtk") or have("timeshift"):
+        info("Opening AURA Backup (Timeshift)…")
+        if args.dry_run:
+            print(dim("[dry-run] pkexec timeshift-gtk"))
+            return 0
+        subprocess.Popen(["pkexec", "timeshift-gtk"] if have("pkexec")
+                         else ["timeshift-gtk"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return 0
+    warn("Timeshift is not installed. Install it with: aura install timeshift")
+    print(dim("Tip: you can also snapshot the whole VM in UTM before big changes."))
+    return 1
+
+
+def cmd_session(args):
+    action = args.action
+    mapping = {
+        "lock":     ["xflock4"],
+        "logout":   ["xfce4-session-logout", "--logout"],
+        "suspend":  ["systemctl", "suspend"],
+        "reboot":   ["systemctl", "reboot"],
+        "shutdown": ["systemctl", "poweroff"],
+    }
+    cmd = mapping[action]
+    if not have(cmd[0]):
+        if action == "lock" and have("light-locker-command"):
+            cmd = ["light-locker-command", "-l"]
+        elif action == "lock" and have("dm-tool"):
+            cmd = ["dm-tool", "lock"]
+        else:
+            err(f"{cmd[0]} not available for action “{action}”.")
+            return 1
+    rc, _ = run(cmd, dry_run=args.dry_run)
+    return rc
+
+
+def cmd_completion(args):
+    cmds = ("help version fetch system apps open settings theme wallpaper dock "
+            "install remove search update upgrade clean doctor tutorial backup "
+            "session completion")
+    if args.shell == "zsh":
+        print(f"""#compdef aura
+_aura() {{
+  local -a sub=({cmds})
+  _arguments '1:subcommand:({cmds})' '*::arg:_normal'
+}}
+_aura "$@"
+""")
+    else:
+        print(f"""_aura() {{
+  local cur="${{COMP_WORDS[COMP_CWORD]}}"
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=( $(compgen -W "{cmds}" -- "$cur") )
+  fi
+}}
+complete -F _aura aura
+""")
+    return 0
+
+
+# ----------------------------------------------------------------------------- main
+def build_parser():
+    p = argparse.ArgumentParser(
+        prog="aura",
+        description="AURA OS command-line interface — try `aura help`.")
+    sub = p.add_subparsers(dest="command")
+
+    sub.add_parser("help", help="Show the AURA command guide")
+    sub.add_parser("version", help="Show version")
+    sub.add_parser("fetch", help="Logo + system summary")
+
+    s = sub.add_parser("system", help="System & VM information")
+    s.add_argument("--json", action="store_true")
+
+    s = sub.add_parser("apps", help="List installed applications")
+    s.add_argument("--json", action="store_true")
+    s.add_argument("--search", metavar="TEXT")
+
+    s = sub.add_parser("open", help="Open an app, file or URL")
+    s.add_argument("target", nargs="+")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("settings", help="Open AURA Settings")
+    s.add_argument("page", nargs="?")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("theme", help="Appearance: mode & accent color")
+    s.add_argument("action", nargs="?",
+                   help="light|dark|auto|list|accent|reset|<accent-name>")
+    s.add_argument("value", nargs="?")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("wallpaper", help="Desktop wallpaper")
+    s.add_argument("action", nargs="?", help="list|set|show")
+    s.add_argument("value", nargs="?")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("dock", help="Dock size, position, zoom, auto-hide")
+    s.add_argument("action", nargs="?", help="show|size|position|zoom|autohide")
+    s.add_argument("value", nargs="?")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("install", help="Install package(s) with APT or Flatpak")
+    s.add_argument("packages", nargs="+")
+    s.add_argument("--flatpak", action="store_true")
+    s.add_argument("-y", "--yes", action="store_true")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("remove", help="Remove package(s)")
+    s.add_argument("packages", nargs="+")
+    s.add_argument("-y", "--yes", action="store_true")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("search", help="Search available packages")
+    s.add_argument("query", nargs="+")
+
+    s = sub.add_parser("update", help="Refresh package lists")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("upgrade", help="Install all updates")
+    s.add_argument("-y", "--yes", action="store_true")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("clean", help="Safe system cleanup (preview by default)")
+    s.add_argument("-y", "--yes", action="store_true")
+    s.add_argument("--dry-run", action="store_true")
+
+    sub.add_parser("doctor", help="Run system health checks")
+    sub.add_parser("tutorial", help="Interactive Celestia Shell tutorial")
+
+    s = sub.add_parser("backup", help="Open the backup tool")
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("session", help="lock / logout / suspend / reboot / shutdown")
+    s.add_argument("action", choices=["lock", "logout", "suspend", "reboot", "shutdown"])
+    s.add_argument("--dry-run", action="store_true")
+
+    s = sub.add_parser("completion", help="Print shell completion script")
+    s.add_argument("shell", choices=["zsh", "bash"])
+    return p
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not args.command:
+        cmd_help(args)
+        return 0
+    dispatch = {
+        "help": cmd_help, "version": cmd_version, "fetch": cmd_fetch,
+        "system": cmd_system, "apps": cmd_apps, "open": cmd_open,
+        "settings": cmd_settings, "theme": cmd_theme,
+        "wallpaper": cmd_wallpaper, "dock": cmd_dock,
+        "install": cmd_install, "remove": cmd_remove, "search": cmd_search,
+        "update": cmd_update, "upgrade": cmd_upgrade, "clean": cmd_clean,
+        "doctor": cmd_doctor, "tutorial": cmd_tutorial, "backup": cmd_backup,
+        "session": cmd_session, "completion": cmd_completion,
+    }
+    try:
+        return dispatch[args.command](args) or 0
+    except KeyboardInterrupt:
+        print()
+        return 130
+    except BrokenPipeError:
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

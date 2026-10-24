@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Text
+Comment=Write notes and edit text files
+Exec=mousepad %F
+Icon=aura-text
+Terminal=false
+Categories=Utility;TextEditor;
+StartupNotify=true
+MimeType=text/plain;text/x-chdr;text/x-csrc;text/x-python;

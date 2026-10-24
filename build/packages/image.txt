@@ -1,0 +1,9 @@
+# Boot components for preinstalled disk images (debos / UTM direct import).
+linux-image-arm64
+initramfs-tools
+grub-efi-arm64
+grub-common
+efibootmgr
+dosfstools
+e2fsprogs
+parted

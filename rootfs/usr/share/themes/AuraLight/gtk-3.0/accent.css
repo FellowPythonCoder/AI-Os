@@ -1,0 +1,4 @@
+/* AURA accent colors — rewritten by `aura theme accent <name>`. */
+@define-color accent_color #2f7fe0;
+@define-color accent_bg_color #2f7fe0;
+@define-color accent_dark #1d5fc0;

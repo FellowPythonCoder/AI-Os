@@ -1,0 +1,11 @@
+[X-GNOME-Metatheme]
+Name=AuraDark
+Type=X-GNOME-Metatheme
+Comment=AURA OS dark theme — midnight blue glass
+Encoding=UTF-8
+GtkTheme=AuraDark
+MetacityTheme=AuraDark
+IconTheme=AuraIcons
+CursorTheme=AuraCursor
+CursorSize=24
+ButtonLayout=close,minimize,maximize:menu

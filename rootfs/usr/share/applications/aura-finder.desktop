@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Finder
+Comment=Browse files, folders and drives
+Exec=thunar %U
+Icon=aura-finder
+Terminal=false
+Categories=System;FileTools;FileManager;Utility;Core;
+StartupNotify=true
+MimeType=inode/directory;

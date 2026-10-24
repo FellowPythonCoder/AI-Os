@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=About This AURA
+Comment=Version, hardware and system information
+Exec=aura-about
+Icon=aura-about
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

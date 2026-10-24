@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA App Center
+Comment=Install, update and remove applications
+Exec=aura-appcenter
+Icon=aura-appcenter
+Terminal=false
+Categories=System;SoftwareManagement;Settings;
+StartupNotify=true

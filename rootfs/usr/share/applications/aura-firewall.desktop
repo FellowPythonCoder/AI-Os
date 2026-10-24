@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Firewall
+Comment=Firewall rules — what may reach this machine from the network
+Exec=gufw
+Icon=aura-firewall
+Terminal=false
+Categories=Settings;Security;Network;
+StartupNotify=true

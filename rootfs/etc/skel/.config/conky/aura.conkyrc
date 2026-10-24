@@ -1,0 +1,53 @@
+-- AURA Widgets (Conky) — glassy system glance for the desktop corner.
+conky.config = {
+    alignment = 'top_right',
+    background = true,
+    border_width = 0,
+    cpu_avg_samples = 2,
+    default_color = 'eaf3fd',
+    default_outline_color = '0a1730',
+    default_shade_color = '0a1730',
+    double_buffer = true,
+    draw_borders = false,
+    draw_graph_borders = false,
+    draw_outline = false,
+    draw_shades = false,
+    extra_newline = false,
+    font = 'Inter:size=10',
+    gap_x = 26,
+    gap_y = 52,
+    minimum_height = 5,
+    minimum_width = 240,
+    maximum_width = 240,
+    net_avg_samples = 2,
+    no_buffers = true,
+    out_to_console = false,
+    out_to_ncurses = false,
+    out_to_stderr = false,
+    out_to_x = true,
+    own_window = true,
+    own_window_class = 'Conky',
+    own_window_type = 'desktop',
+    own_window_transparent = false,
+    own_window_argb_visual = true,
+    own_window_argb_value = 150,
+    own_window_colour = '101f3f',
+    own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
+    show_graph_range = false,
+    show_graph_scale = false,
+    stippled_borders = 0,
+    update_interval = 2.0,
+    uppercase = false,
+    use_spacer = 'none',
+    use_xft = true,
+    color1 = '56c7f2',
+    color2 = '9db4d0',
+}
+conky.text = [[
+${font Inter:size=26:bold}${time %H:%M}${font}
+${color2}${time %A, %d %B}${color}
+${voffset 6}${color1}CPU${color}  ${cpu cpu0}%  ${cpubar cpu0 6,120}
+${color1}RAM${color}  ${memperc}%  ${membar 6,120}
+${color1}DSK${color}  ${fs_used_perc /}%  ${fs_bar 6,120 /}
+${voffset 2}${color2}Up ${upspeed} · Down ${downspeed}${color}
+]]

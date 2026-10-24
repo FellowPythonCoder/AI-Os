@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS mountain glyph (transparent background) — for menus, boot screen, docs. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="peakFarS" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6db9f2"/>
+      <stop offset="1" stop-color="#2f7fe0"/>
+    </linearGradient>
+    <linearGradient id="peakNearS" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2ea8e8"/>
+      <stop offset="1" stop-color="#1450c8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="186" cy="62" r="22" fill="#57c8f2"/>
+  <path d="M8 206 L78 110 L124 158 L166 104 L248 206 Z" fill="url(#peakFarS)" opacity="0.8"/>
+  <path d="M8 222 L100 116 L152 172 L202 130 L248 222 Z" fill="url(#peakNearS)"/>
+  <path d="M100 116 L121 141 L107 145 L95 134 L83 143 Z" fill="#eaf7ff"/>
+  <path d="M202 130 L217 148 L205 151 L196 142 L186 149 Z" fill="#eaf7ff"/>
+</svg>

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Media
+Comment=Play music and videos
+Exec=Parole %F
+Icon=aura-media
+Terminal=false
+Categories=AudioVideo;Player;Audio;Video;
+StartupNotify=true
+MimeType=audio/mpeg;audio/ogg;audio/flac;audio/x-wav;video/mp4;video/x-matroska;video/webm;

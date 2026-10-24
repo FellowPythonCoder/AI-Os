@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS keyboard shortcuts -->
+<channel name="xfce4-keyboard-shortcuts" version="1.0">
+  <property name="commands" type="empty">
+    <property name="custom" type="empty">
+      <!-- Spotlight-style search -->
+      <property name="&lt;Super&gt;space" type="string" value="xfce4-appfinder --collapsed"/>
+      <property name="&lt;Alt&gt;space" type="string" value="xfce4-appfinder --collapsed"/>
+      <!-- Celestia Shell -->
+      <property name="&lt;Primary&gt;&lt;Alt&gt;t" type="string" value="xfce4-terminal --title=&quot;Celestia Shell&quot;"/>
+      <property name="&lt;Super&gt;Return" type="string" value="xfce4-terminal --title=&quot;Celestia Shell&quot;"/>
+      <!-- Files, browser, settings -->
+      <property name="&lt;Super&gt;e" type="string" value="thunar"/>
+      <property name="&lt;Super&gt;b" type="string" value="aura open browser"/>
+      <property name="&lt;Super&gt;comma" type="string" value="aura-settings"/>
+      <!-- Screenshots -->
+      <property name="Print" type="string" value="xfce4-screenshooter -f -s ~/Pictures"/>
+      <property name="&lt;Shift&gt;Print" type="string" value="xfce4-screenshooter -r -s ~/Pictures"/>
+      <property name="&lt;Alt&gt;Print" type="string" value="xfce4-screenshooter -w -s ~/Pictures"/>
+      <!-- Session -->
+      <property name="&lt;Super&gt;l" type="string" value="xflock4"/>
+      <property name="&lt;Primary&gt;&lt;Shift&gt;Escape" type="string" value="xfce4-taskmanager"/>
+      <!-- Clipboard history -->
+      <property name="&lt;Super&gt;v" type="string" value="xfce4-popup-clipman"/>
+      <!-- Volume -->
+      <property name="XF86AudioRaiseVolume" type="string" value="pactl set-sink-volume @DEFAULT_SINK@ +5%"/>
+      <property name="XF86AudioLowerVolume" type="string" value="pactl set-sink-volume @DEFAULT_SINK@ -5%"/>
+      <property name="XF86AudioMute" type="string" value="pactl set-sink-mute @DEFAULT_SINK@ toggle"/>
+    </property>
+  </property>
+  <property name="xfwm4" type="empty">
+    <property name="custom" type="empty">
+      <property name="&lt;Super&gt;Left" type="string" value="tile_left_key"/>
+      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
+      <property name="&lt;Super&gt;Up" type="string" value="maximize_window_key"/>
+      <property name="&lt;Super&gt;Down" type="string" value="hide_window_key"/>
+      <property name="&lt;Super&gt;f" type="string" value="fullscreen_key"/>
+      <property name="&lt;Super&gt;w" type="string" value="close_window_key"/>
+      <property name="&lt;Super&gt;m" type="string" value="hide_window_key"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;Left" type="string" value="left_workspace_key"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;Right" type="string" value="right_workspace_key"/>
+      <property name="&lt;Super&gt;Tab" type="string" value="cycle_windows_key"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;d" type="string" value="show_desktop_key"/>
+      <property name="&lt;Super&gt;d" type="string" value="show_desktop_key"/>
+    </property>
+  </property>
+</channel>

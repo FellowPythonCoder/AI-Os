@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Plank (AURA Dock)
+Comment=The AURA OS application dock
+Exec=plank
+Icon=plank
+Terminal=false
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

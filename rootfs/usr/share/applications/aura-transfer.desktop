@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Transfer
+Comment=Download manager with pause, resume and queues
+Exec=uget-gtk
+Icon=aura-transfer
+Terminal=false
+Categories=Network;FileTransfer;
+StartupNotify=true

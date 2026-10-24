@@ -1,0 +1,11 @@
+[X-GNOME-Metatheme]
+Name=AuraLight
+Type=X-GNOME-Metatheme
+Comment=AURA OS light theme — glacier white glass
+Encoding=UTF-8
+GtkTheme=AuraLight
+MetacityTheme=AuraLight
+IconTheme=AuraIcons
+CursorTheme=AuraCursor
+CursorSize=24
+ButtonLayout=close,minimize,maximize:menu

@@ -1,0 +1,364 @@
+#!/usr/bin/env python3
+"""
+Welcome to AURA — the first-run setup assistant.
+
+Guides new users through account, appearance, wallpaper, display and
+accessibility, Celestia Shell basics and the App Center. Choices are
+applied immediately via the `aura` CLI. On completion it writes
+~/.config/aura/first-run-done so it never nags again (the autostart
+entry checks for that file).
+"""
+import getpass
+import json
+import os
+import subprocess
+import sys
+
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, Gdk, GdkPixbuf, GLib  # noqa: E402
+
+FLAG = os.path.expanduser("~/.config/aura/first-run-done")
+CONFIG_FILE = os.path.expanduser("~/.config/aura/config.json")
+WP_DIR = "/usr/share/backgrounds/aura"
+if not os.path.isdir(WP_DIR):
+    WP_DIR = os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "share",
+        "backgrounds", "aura"))
+
+ACCENTS = [
+    ("ocean", "Ocean", "#2f7fe0"), ("electric", "Electric", "#1e90ff"),
+    ("glacier", "Glacier", "#38b6e8"), ("midnight", "Midnight", "#3b5bdb"),
+    ("cyan", "Cyan", "#18b7c4"), ("teal", "Teal", "#14b8a6"),
+    ("violet", "Violet", "#7c5cd6"),
+]
+
+
+def aura_cmd(*args):
+    subprocess.Popen(["aura", *args], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL)
+
+
+def title(text, size="xx-large"):
+    lbl = Gtk.Label()
+    lbl.set_markup(f'<span size="{size}" weight="bold">{text}</span>')
+    lbl.set_xalign(0)
+    return lbl
+
+
+def body_label(text):
+    lbl = Gtk.Label(label=text)
+    lbl.set_xalign(0)
+    lbl.set_line_wrap(True)
+    return lbl
+
+
+class Welcome(Gtk.Window):
+    PAGES = ["welcome", "account", "appearance", "wallpaper", "display",
+             "celestia", "apps", "done"]
+
+    def __init__(self):
+        super().__init__(title="Welcome to AURA")
+        self.set_default_size(820, 560)
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_resizable(False)
+        try:
+            self.set_icon_name("aura-welcome")
+        except Exception:
+            pass
+        self.index = 0
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(root)
+
+        self.stack = Gtk.Stack()
+        self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
+        root.pack_start(self.stack, True, True, 0)
+        for builder in (self.p_welcome, self.p_account, self.p_appearance,
+                        self.p_wallpaper, self.p_display, self.p_celestia,
+                        self.p_apps, self.p_done):
+            self.stack.add_named(builder(), builder.__name__[2:])
+
+        nav = Gtk.Box(spacing=8)
+        nav.set_border_width(14)
+        self.dots = Gtk.Label()
+        nav.pack_start(self.dots, False, False, 6)
+        spacer = Gtk.Box()
+        nav.pack_start(spacer, True, True, 0)
+        self.skip_btn = Gtk.Button(label="Skip setup")
+        self.skip_btn.connect("clicked", lambda *_: self.finish())
+        nav.pack_start(self.skip_btn, False, False, 0)
+        self.back_btn = Gtk.Button(label="← Back")
+        self.back_btn.connect("clicked", lambda *_: self.go(-1))
+        nav.pack_start(self.back_btn, False, False, 0)
+        self.next_btn = Gtk.Button(label="Continue →")
+        self.next_btn.get_style_context().add_class("suggested-action")
+        self.next_btn.connect("clicked", self.on_next)
+        nav.pack_start(self.next_btn, False, False, 0)
+        root.pack_start(nav, False, False, 0)
+        self.refresh_nav()
+
+    # ---------------------------------------------------------------- pages
+    def page(self, heading, intro):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_border_width(30)
+        box.pack_start(title(heading), False, False, 0)
+        if intro:
+            box.pack_start(body_label(intro), False, False, 0)
+        return box
+
+    def p_welcome(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_border_width(30)
+        logo = Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.DIALOG)
+        logo.set_pixel_size(130)
+        box.pack_start(logo, False, False, 0)
+        t = Gtk.Label()
+        t.set_markup('<span size="xx-large" weight="bold">Welcome to AURA OS</span>')
+        box.pack_start(t, False, False, 0)
+        s = Gtk.Label(label="A blue-mountain desktop, crafted for your Mac's "
+                            "virtual machine.\nIn the next two minutes we'll "
+                            "make it feel like home.")
+        s.set_justify(Gtk.Justification.CENTER)
+        box.pack_start(s, False, False, 0)
+        return box
+
+    def p_account(self):
+        user = getpass.getuser()
+        box = self.page(
+            "Your account",
+            f"You're signed in as “{user}”. AURA protects your files with your "
+            "password and asks for it before any system-wide change.")
+        row = Gtk.Box(spacing=8)
+        b_pass = Gtk.Button(label="Change my password…")
+        b_pass.connect("clicked", lambda *_: subprocess.Popen(
+            ["xfce4-terminal", "--title=Change password", "-e",
+             "passwd; echo; read -p 'Press Enter to close…' _"]))
+        row.pack_start(b_pass, False, False, 0)
+        b_users = Gtk.Button(label="Manage users…")
+        b_users.connect("clicked", lambda *_: subprocess.Popen(
+            ["xfce4-terminal", "--title=User guide", "-e",
+             "echo 'Add a user:   sudo adduser NAME'; "
+             "echo 'Make admin:   sudo usermod -aG sudo NAME'; "
+             "echo; read -p 'Press Enter to close…' _"]))
+        row.pack_start(b_users, False, False, 0)
+        box.pack_start(row, False, False, 0)
+        box.pack_start(body_label(
+            "Tip: if this VM came with the default password “aura”, change it "
+            "now — it's the key to everything."), False, False, 0)
+        return box
+
+    def p_appearance(self):
+        box = self.page("Appearance",
+                        "Choose a mode and an accent color. Watch AURA "
+                        "re-dress itself instantly.")
+        modes = Gtk.Box(spacing=8)
+        dark = Gtk.RadioButton(label="🌙 Dark — Midnight Peaks")
+        light = Gtk.RadioButton(group=dark, label="☀️ Light — Glacier Dawn")
+        dark.connect("toggled", lambda b: b.get_active()
+                     and aura_cmd("theme", "dark"))
+        light.connect("toggled", lambda b: b.get_active()
+                      and aura_cmd("theme", "light"))
+        modes.pack_start(dark, False, False, 0)
+        modes.pack_start(light, False, False, 0)
+        box.pack_start(modes, False, False, 0)
+
+        swatches = Gtk.Box(spacing=8)
+        swatches.set_margin_top(8)
+        for name, label, hexv in ACCENTS:
+            col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            btn = Gtk.Button()
+            btn.set_size_request(52, 52)
+            css = Gtk.CssProvider()
+            css.load_from_data(
+                f"button {{ background: {hexv}; background-image: none; "
+                "border-radius: 14px; }".encode())
+            btn.get_style_context().add_provider(
+                css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            btn.connect("clicked",
+                        lambda _b, n=name: aura_cmd("theme", "accent", n))
+            col.pack_start(btn, False, False, 0)
+            cap = Gtk.Label(label=label)
+            cap.get_style_context().add_class("dim-label")
+            col.pack_start(cap, False, False, 0)
+            swatches.pack_start(col, False, False, 0)
+        box.pack_start(swatches, False, False, 0)
+        return box
+
+    def p_wallpaper(self):
+        box = self.page("Wallpaper", "Four mountain scenes ship with AURA. "
+                                     "Add your own later in AURA Settings.")
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_max_children_per_line(2)
+        flow.set_column_spacing(10)
+        flow.set_row_spacing(10)
+        if os.path.isdir(WP_DIR):
+            for fn in sorted(os.listdir(WP_DIR)):
+                if not fn.lower().endswith((".jpg", ".png")):
+                    continue
+                path = os.path.join(WP_DIR, fn)
+                try:
+                    pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                        path, 270, 152, True)
+                    img = Gtk.Image.new_from_pixbuf(pix)
+                except GLib.Error:
+                    continue
+                btn = Gtk.Button()
+                btn.add(img)
+                btn.connect("clicked", lambda _b, f=fn: aura_cmd(
+                    "wallpaper", "set", os.path.splitext(f)[0]))
+                flow.add(btn)
+        box.pack_start(flow, False, False, 0)
+        return box
+
+    def p_display(self):
+        box = self.page("Display & accessibility",
+                        "Make text comfortable. The display resolution follows "
+                        "your UTM window automatically.")
+        row = Gtk.Box(spacing=8)
+        b = Gtk.Button(label="Open Display Settings…")
+        b.connect("clicked", lambda *_: subprocess.Popen(
+            ["xfce4-display-settings"]))
+        row.pack_start(b, False, False, 0)
+        box.pack_start(row, False, False, 0)
+
+        def switch_row(label, callback):
+            r = Gtk.Box(spacing=8)
+            sw = Gtk.Switch(active=False)
+            sw.connect("notify::active", callback)
+            r.pack_start(sw, False, False, 0)
+            r.pack_start(Gtk.Label(label=label), False, False, 0)
+            return r
+
+        box.pack_start(switch_row(
+            "Larger interface text (125%)",
+            lambda s, _p: subprocess.Popen(
+                ["xfconf-query", "-c", "xsettings", "-p", "/Xft/DPI",
+                 "-t", "int", "-s", "120" if s.get_active() else "-1",
+                 "--create"])), False, False, 0)
+        box.pack_start(switch_row(
+            "Reduce interface animations",
+            lambda s, _p: self._set_animations(not s.get_active())),
+            False, False, 0)
+        box.pack_start(switch_row(
+            "Larger dock icons (64 px)",
+            lambda s, _p: aura_cmd("dock", "size",
+                                   "64" if s.get_active() else "52")),
+            False, False, 0)
+        return box
+
+    def p_celestia(self):
+        box = self.page("Meet Celestia Shell",
+                        "AURA's terminal is friendly from the first keystroke. "
+                        "Remember just one command — it teaches you the rest:")
+        cmds = [("aura help", "the full command guide"),
+                ("aura tutorial", "a 5-minute interactive tour"),
+                ("aura apps", "see everything installed"),
+                ("aura install firefox", "install real software"),
+                ("aura doctor", "health check with plain-English fixes")]
+        for cmd, desc in cmds:
+            lbl = Gtk.Label()
+            lbl.set_markup(f"<tt><b>{cmd}</b></tt>   —  {desc}")
+            lbl.set_xalign(0)
+            box.pack_start(lbl, False, False, 0)
+        b = Gtk.Button(label="Try the tutorial now")
+        b.get_style_context().add_class("suggested-action")
+        b.connect("clicked", lambda *_: subprocess.Popen(
+            ["xfce4-terminal", "--title=Celestia Tutorial", "-e",
+             "celestia-tutorial"]))
+        box.pack_start(b, False, False, 0)
+        return box
+
+    def p_apps(self):
+        box = self.page("Get more apps",
+                        "The AURA App Center connects to Debian's repositories "
+                        "and Flathub — tens of thousands of free applications, "
+                        "from LibreOffice and Blender to local AI tools. "
+                        "Installs always ask for your password and show "
+                        "exactly what they're doing.")
+        b = Gtk.Button(label="Open the App Center")
+        b.get_style_context().add_class("suggested-action")
+        b.connect("clicked", lambda *_: subprocess.Popen(["aura-appcenter"]))
+        box.pack_start(b, False, False, 0)
+        box.pack_start(body_label(
+            "You can also install from Celestia Shell at any time:  "
+            "aura search <name>  ·  aura install <name>"), False, False, 0)
+        return box
+
+    def p_done(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_border_width(30)
+        logo = Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.DIALOG)
+        logo.set_pixel_size(110)
+        box.pack_start(logo, False, False, 0)
+        t = Gtk.Label()
+        t.set_markup('<span size="xx-large" weight="bold">You\'re at the summit 🎉</span>')
+        box.pack_start(t, False, False, 0)
+        s = Gtk.Label(label="Your desktop is ready: the AURA menu is top-left, "
+                            "the dock is below,\nand Super + Space finds "
+                            "everything. Happy exploring!")
+        s.set_justify(Gtk.Justification.CENTER)
+        box.pack_start(s, False, False, 0)
+        return box
+
+    # ---------------------------------------------------------------- nav
+    def _set_animations(self, enabled):
+        ini = os.path.expanduser("~/.config/gtk-3.0/settings.ini")
+        os.makedirs(os.path.dirname(ini), exist_ok=True)
+        lines = ["[Settings]"]
+        if os.path.isfile(ini):
+            with open(ini, encoding="utf-8") as fh:
+                lines = [l for l in fh.read().splitlines()
+                         if not l.startswith("gtk-enable-animations")]
+            if "[Settings]" not in lines:
+                lines.insert(0, "[Settings]")
+        lines.append(f"gtk-enable-animations={1 if enabled else 0}")
+        with open(ini, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+
+    def refresh_nav(self):
+        n = len(self.PAGES)
+        self.dots.set_text("● " * (self.index + 1) + "○ " * (n - self.index - 1))
+        self.back_btn.set_sensitive(self.index > 0)
+        last = self.index == n - 1
+        self.next_btn.set_label("Start using AURA 🏔" if last else "Continue →")
+        self.skip_btn.set_visible(not last)
+        self.stack.set_visible_child_name(self.PAGES[self.index])
+
+    def go(self, delta):
+        self.index = max(0, min(len(self.PAGES) - 1, self.index + delta))
+        self.refresh_nav()
+
+    def on_next(self, _b):
+        if self.index == len(self.PAGES) - 1:
+            self.finish()
+        else:
+            self.go(+1)
+
+    def finish(self):
+        os.makedirs(os.path.dirname(FLAG), exist_ok=True)
+        with open(FLAG, "w", encoding="utf-8") as fh:
+            fh.write("done\n")
+        try:
+            cfg = {}
+            if os.path.isfile(CONFIG_FILE):
+                with open(CONFIG_FILE, encoding="utf-8") as fh:
+                    cfg = json.load(fh)
+            cfg["first_run_done"] = True
+            with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+                json.dump(cfg, fh, indent=2)
+        except (OSError, json.JSONDecodeError):
+            pass
+        self.destroy()
+
+
+def main():
+    win = Welcome()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

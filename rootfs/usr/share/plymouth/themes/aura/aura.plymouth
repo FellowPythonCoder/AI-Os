@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=AURA
+Description=AURA OS boot splash — blue mountains over midnight peaks.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/aura
+ScriptFile=/usr/share/plymouth/themes/aura/aura.script

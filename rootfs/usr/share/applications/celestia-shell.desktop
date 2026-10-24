@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Celestia Shell
+Comment=AURA's command-line environment — try `aura help`
+Exec=xfce4-terminal --title="Celestia Shell"
+Icon=celestia-shell
+Terminal=false
+Categories=System;TerminalEmulator;Utility;
+StartupNotify=true

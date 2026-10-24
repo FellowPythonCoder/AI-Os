@@ -1,0 +1,123 @@
+{
+  "comment": "AURA App Center catalog. Every entry is a real Debian ARM64 package or a Flathub app. apt = Debian package name, flatpak = Flathub ID. Entries with neither show manual instructions (see 'note').",
+  "version": 1,
+  "categories": [
+    {
+      "id": "productivity",
+      "name": "Productivity",
+      "apps": [
+        {"id": "libreoffice", "name": "LibreOffice", "icon": "libreoffice-startcenter", "apt": "libreoffice", "flatpak": null, "desc": "Complete office suite — Writer, Calc, Impress and more. Opens Microsoft Office files."},
+        {"id": "thunderbird", "name": "Thunderbird Mail", "icon": "thunderbird", "apt": "thunderbird", "flatpak": null, "desc": "Email, calendar and contacts."},
+        {"id": "obsidian", "name": "Obsidian", "icon": "md.obsidian.Obsidian", "apt": null, "flatpak": "md.obsidian.Obsidian", "desc": "Linked Markdown knowledge base. (Proprietary app, free for personal use.)"},
+        {"id": "joplin", "name": "Joplin", "icon": "net.cozic.joplin_desktop", "apt": null, "flatpak": "net.cozic.joplin_desktop", "desc": "Open-source notes with end-to-end encrypted sync."},
+        {"id": "nextcloud", "name": "Nextcloud Desktop", "icon": "nextcloud", "apt": "nextcloud-desktop", "flatpak": null, "desc": "Sync files with your Nextcloud server."},
+        {"id": "onlyoffice", "name": "ONLYOFFICE", "icon": "org.onlyoffice.desktopeditors", "apt": null, "flatpak": "org.onlyoffice.desktopeditors", "desc": "Office suite with excellent .docx/.xlsx fidelity."}
+      ]
+    },
+    {
+      "id": "development",
+      "name": "Development",
+      "apps": [
+        {"id": "vscodium", "name": "VSCodium", "icon": "com.vscodium.codium", "apt": null, "flatpak": "com.vscodium.codium", "desc": "VS Code built from open source, without telemetry. Extensions, Git, debugging."},
+        {"id": "geany", "name": "Geany (AURA Studio)", "icon": "aura-studio", "apt": "geany", "flatpak": null, "desc": "Lightning-fast IDE preinstalled as AURA Studio."},
+        {"id": "git", "name": "Git", "icon": "git", "apt": "git", "flatpak": null, "desc": "Version control. Preinstalled in AURA OS."},
+        {"id": "docker", "name": "Docker Engine", "icon": "docker", "apt": "docker.io", "flatpak": null, "desc": "Build and run ARM64 containers. After install: sudo usermod -aG docker $USER, then re-login."},
+        {"id": "nodejs", "name": "Node.js + npm", "icon": "nodejs", "apt": "nodejs", "flatpak": null, "desc": "JavaScript runtime. Also installs npm via Recommends."},
+        {"id": "python-full", "name": "Python (full)", "icon": "python3", "apt": "python3-full", "flatpak": null, "desc": "Complete Python 3 with venv, pip tooling and dev headers."},
+        {"id": "dbeaver", "name": "DBeaver", "icon": "io.dbeaver.DBeaverCommunity", "apt": null, "flatpak": "io.dbeaver.DBeaverCommunity", "desc": "Universal database client: Postgres, MySQL, SQLite and more."},
+        {"id": "filezilla", "name": "FileZilla", "icon": "filezilla", "apt": "filezilla", "flatpak": null, "desc": "FTP/SFTP file transfers."},
+        {"id": "meld", "name": "Meld", "icon": "meld", "apt": "meld", "flatpak": null, "desc": "Visual diff and merge tool."}
+      ]
+    },
+    {
+      "id": "internet",
+      "name": "Internet",
+      "apps": [
+        {"id": "firefox-esr", "name": "AURA Browser (Firefox ESR)", "icon": "aura-browser", "apt": "firefox-esr", "flatpak": null, "desc": "AURA's default browser: private, fast, with containers and sync."},
+        {"id": "chromium", "name": "Chromium", "icon": "chromium", "apt": "chromium", "flatpak": null, "desc": "The open-source browser Chrome is built from."},
+        {"id": "telegram", "name": "Telegram", "icon": "telegram", "apt": "telegram-desktop", "flatpak": null, "desc": "Cloud messaging."},
+        {"id": "signal", "name": "Signal", "icon": "org.signal.Signal", "apt": null, "flatpak": "org.signal.Signal", "desc": "Private messaging with end-to-end encryption."},
+        {"id": "transmission", "name": "Transmission", "icon": "transmission", "apt": "transmission-gtk", "flatpak": null, "desc": "Lightweight BitTorrent client."},
+        {"id": "qbittorrent", "name": "qBittorrent", "icon": "qbittorrent", "apt": "qbittorrent", "flatpak": null, "desc": "Full-featured BitTorrent client with search."}
+      ]
+    },
+    {
+      "id": "graphics",
+      "name": "Graphics & Photo",
+      "apps": [
+        {"id": "gimp", "name": "GIMP", "icon": "gimp", "apt": "gimp", "flatpak": null, "desc": "Professional photo and image editing."},
+        {"id": "inkscape", "name": "Inkscape", "icon": "inkscape", "apt": "inkscape", "flatpak": null, "desc": "Vector illustration and logo design (SVG)."},
+        {"id": "krita", "name": "Krita", "icon": "krita", "apt": "krita", "flatpak": null, "desc": "Digital painting loved by illustrators."},
+        {"id": "blender", "name": "Blender", "icon": "blender", "apt": "blender", "flatpak": null, "desc": "3D modeling, animation and rendering."},
+        {"id": "darktable", "name": "darktable", "icon": "darktable", "apt": "darktable", "flatpak": null, "desc": "RAW photo development, like a virtual darkroom."},
+        {"id": "shotwell", "name": "Shotwell", "icon": "shotwell", "apt": "shotwell", "flatpak": null, "desc": "Photo library organizer with events and tags."}
+      ]
+    },
+    {
+      "id": "video",
+      "name": "Video",
+      "apps": [
+        {"id": "vlc", "name": "VLC", "icon": "vlc", "apt": "vlc", "flatpak": null, "desc": "Plays virtually every video and audio format."},
+        {"id": "obs-studio", "name": "OBS Studio", "icon": "obs-studio", "apt": "obs-studio", "flatpak": null, "desc": "Screen recording and live streaming."},
+        {"id": "kdenlive", "name": "Kdenlive", "icon": "kdenlive", "apt": "kdenlive", "flatpak": null, "desc": "Full-featured video editor."},
+        {"id": "mpv", "name": "mpv", "icon": "mpv", "apt": "mpv", "flatpak": null, "desc": "Minimal, high-quality media player."},
+        {"id": "handbrake", "name": "HandBrake", "icon": "handbrake", "apt": "handbrake", "flatpak": null, "desc": "Convert and compress video files."}
+      ]
+    },
+    {
+      "id": "audio",
+      "name": "Audio & Music",
+      "apps": [
+        {"id": "audacity", "name": "Audacity", "icon": "audacity", "apt": "audacity", "flatpak": null, "desc": "Record and edit audio."},
+        {"id": "spotify", "name": "Spotify", "icon": "com.spotify.Client", "apt": null, "flatpak": "com.spotify.Client", "desc": "Music streaming (unofficial Flatpak wrapping the official client)."},
+        {"id": "lollypop", "name": "Lollypop", "icon": "lollypop", "apt": "lollypop", "flatpak": null, "desc": "Beautiful local music library player."},
+        {"id": "easyeffects", "name": "Easy Effects", "icon": "easyeffects", "apt": "easyeffects", "flatpak": null, "desc": "System-wide equalizer and audio effects."}
+      ]
+    },
+    {
+      "id": "utilities",
+      "name": "Utilities",
+      "apps": [
+        {"id": "gnome-disks", "name": "Disks", "icon": "gnome-disks", "apt": "gnome-disk-utility", "flatpak": null, "desc": "Disk health, partitions and image writing."},
+        {"id": "gparted", "name": "GParted", "icon": "gparted", "apt": "gparted", "flatpak": null, "desc": "Advanced partition editor."},
+        {"id": "keepassxc", "name": "KeePassXC", "icon": "keepassxc", "apt": "keepassxc", "flatpak": null, "desc": "Offline password manager."},
+        {"id": "bleachbit", "name": "BleachBit", "icon": "bleachbit", "apt": "bleachbit", "flatpak": null, "desc": "Deep cache and junk cleaner."},
+        {"id": "syncthing", "name": "Syncthing", "icon": "syncthing", "apt": "syncthing", "flatpak": null, "desc": "Private peer-to-peer file sync (pairs well with your Mac)."},
+        {"id": "gufw", "name": "AURA Firewall (Gufw)", "icon": "aura-firewall", "apt": "gufw", "flatpak": null, "desc": "Friendly firewall front-end — preinstalled as AURA Firewall."},
+        {"id": "timeshift", "name": "Timeshift (AURA Backup)", "icon": "aura-backup", "apt": "timeshift", "flatpak": null, "desc": "System snapshots & restore — preinstalled as AURA Backup."}
+      ]
+    },
+    {
+      "id": "games",
+      "name": "Games",
+      "apps": [
+        {"id": "supertuxkart", "name": "SuperTuxKart", "icon": "supertuxkart", "apt": "supertuxkart", "flatpak": null, "desc": "Kart racing with Tux and friends."},
+        {"id": "0ad", "name": "0 A.D.", "icon": "0ad", "apt": "0ad", "flatpak": null, "desc": "Ancient-warfare real-time strategy."},
+        {"id": "minetest", "name": "Minetest (Luanti)", "icon": "minetest", "apt": "minetest", "flatpak": null, "desc": "Infinite voxel sandbox — build anything, add mods."},
+        {"id": "openttd", "name": "OpenTTD", "icon": "openttd", "apt": "openttd", "flatpak": null, "desc": "Transport empire simulation."},
+        {"id": "warzone2100", "name": "Warzone 2100", "icon": "warzone2100", "apt": "warzone2100", "flatpak": null, "desc": "Classic 3D real-time strategy."},
+        {"id": "steam-note", "name": "Steam", "icon": "steam", "apt": null, "flatpak": null, "desc": "Not available on ARM64 Linux today.", "note": "Steam does not publish an ARM64 Linux client, so it cannot run in AURA OS. Great alternatives: the native games in this category, browser games, and cloud gaming (e.g. GeForce NOW or Xbox Cloud) in AURA Browser. For your Steam library, keep playing on the Mac side — your files stay one shared folder away."}
+      ]
+    },
+    {
+      "id": "education",
+      "name": "Education",
+      "apps": [
+        {"id": "stellarium", "name": "Stellarium", "icon": "stellarium", "apt": "stellarium", "flatpak": null, "desc": "A planetarium for your desktop."},
+        {"id": "anki", "name": "Anki", "icon": "net.ankiweb.Anki", "apt": null, "flatpak": "net.ankiweb.Anki", "desc": "Spaced-repetition flashcards."},
+        {"id": "librecad", "name": "LibreCAD", "icon": "librecad", "apt": "librecad", "flatpak": null, "desc": "2D technical drawing."},
+        {"id": "marble", "name": "Marble", "icon": "marble", "apt": "marble", "flatpak": null, "desc": "Virtual globe and atlas."}
+      ]
+    },
+    {
+      "id": "ai",
+      "name": "AI Tools",
+      "apps": [
+        {"id": "alpaca", "name": "Alpaca", "icon": "com.jeffser.Alpaca", "apt": null, "flatpak": "com.jeffser.Alpaca", "desc": "Chat with local AI models (Llama, Mistral…) on-device via Ollama. Private and offline-capable."},
+        {"id": "gpt4all", "name": "GPT4All", "icon": "io.gpt4all.gpt4all", "apt": null, "flatpak": "io.gpt4all.gpt4all", "desc": "Run open language models locally; chat with your documents."},
+        {"id": "upscayl", "name": "Upscayl", "icon": "org.upscayl.Upscayl", "apt": null, "flatpak": "org.upscayl.Upscayl", "desc": "AI image upscaler for photos."},
+        {"id": "ollama", "name": "Ollama (CLI)", "icon": "utilities-terminal", "apt": null, "flatpak": null, "desc": "Command-line runner for local LLMs.", "note": "Ollama is not in Debian's repositories. Safe manual install:\n\n1. Open ollama.com/download in AURA Browser.\n2. Download the Linux ARM64 tarball (do not pipe scripts into sudo).\n3. In Celestia Shell:\n   tar -xzf ollama-linux-arm64.tar.gz -C ~/.local\n   ~/.local/bin/ollama serve\n4. Then:  ollama run llama3.2\n\nInside a VM the CPU does the work — small models (1–3B) run best, and giving the VM 6 GB RAM in UTM helps a lot. Alpaca (above) can manage Ollama for you graphically."}
+      ]
+    }
+  ]
+}

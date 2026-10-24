@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Tests & asset reproducibility
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install checkers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            shellcheck desktop-file-utils libxml2-utils python3
+
+      - name: Python + shell syntax
+        run: |
+          python3 -m py_compile rootfs/usr/bin/aura rootfs/usr/bin/aura-* tools/*.py tests/*.py
+          for f in installer/*.sh build/*.sh tools/*.sh rootfs/usr/bin/celestia-tutorial rootfs/usr/share/aura/finalize.sh; do
+            bash -n "$f"
+          done
+
+      - name: shellcheck
+        run: |
+          shellcheck -S warning installer/install-aura.sh rootfs/usr/share/aura/finalize.sh \
+            build/build-iso.sh build/build-image.sh rootfs/usr/share/aura/render-boot-assets.sh \
+            rootfs/usr/bin/celestia-tutorial tests/run-tests.sh
+
+      - name: Validate desktop files
+        run: |
+          for f in rootfs/usr/share/applications/*.desktop; do
+            desktop-file-validate "$f"
+          done
+
+      - name: Validate XML configs
+        run: |
+          find rootfs/etc/skel -name '*.xml' -print0 | xargs -0 -n1 xmllint --noout
+          find rootfs/usr/share/icons assets -name '*.svg' -print0 | xargs -0 -n1 xmllint --noout
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Regenerate assets & check nothing drifted
+        run: |
+          for t in generate_icons generate_cursors generate_themes \
+                   generate_xfwm4 generate_sounds generate_desktop_files \
+                   render_debos_recipe; do
+            python3 "tools/$t.py"
+          done
+          ./rootfs/usr/bin/aura completion zsh > rootfs/usr/share/zsh/vendor-completions/_aura
+          ./rootfs/usr/bin/aura completion bash > rootfs/usr/share/bash-completion/completions/aura
+          if ! git diff --quiet; then
+            echo "Generated assets are stale — re-run the tools and commit:"
+            git diff --stat
+            exit 1
+          fi

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AURA Guide
+Comment=Learn AURA OS: basics, Celestia Shell, shortcuts and tips
+Exec=aura-help
+Icon=aura-help
+Terminal=false
+Categories=Documentation;

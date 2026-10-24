@@ -1,0 +1,7 @@
+#compdef aura
+_aura() {
+  local -a sub=(help version fetch system apps open settings theme wallpaper dock install remove search update upgrade clean doctor tutorial backup session completion)
+  _arguments '1:subcommand:(help version fetch system apps open settings theme wallpaper dock install remove search update upgrade clean doctor tutorial backup session completion)' '*::arg:_normal'
+}
+_aura "$@"
+

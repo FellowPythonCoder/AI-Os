@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS window manager defaults: AURA decorations, left-side buttons,
+     snapping, tiling and smooth compositing. -->
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="AuraDark"/>
+    <property name="button_layout" type="string" value="CMH|"/>
+    <property name="title_alignment" type="string" value="center"/>
+    <property name="title_font" type="string" value="Inter Bold 10"/>
+    <property name="workspace_count" type="int" value="4"/>
+    <property name="workspace_names" type="array">
+      <value type="string" value="Summit"/>
+      <value type="string" value="Ridge"/>
+      <value type="string" value="Valley"/>
+      <value type="string" value="Glacier"/>
+    </property>
+    <property name="use_compositing" type="bool" value="true"/>
+    <property name="shadow_opacity" type="int" value="60"/>
+    <property name="frame_opacity" type="int" value="100"/>
+    <property name="inactive_opacity" type="int" value="100"/>
+    <property name="move_opacity" type="int" value="92"/>
+    <property name="resize_opacity" type="int" value="100"/>
+    <property name="popup_opacity" type="int" value="96"/>
+    <property name="show_frame_shadow" type="bool" value="true"/>
+    <property name="show_popup_shadow" type="bool" value="true"/>
+    <property name="snap_to_border" type="bool" value="true"/>
+    <property name="snap_to_windows" type="bool" value="true"/>
+    <property name="tile_on_move" type="bool" value="true"/>
+    <property name="wrap_windows" type="bool" value="true"/>
+    <property name="wrap_workspaces" type="bool" value="true"/>
+    <property name="wrap_resistance" type="int" value="8"/>
+    <property name="focus_mode" type="string" value="click"/>
+    <property name="raise_on_click" type="bool" value="true"/>
+    <property name="click_to_focus" type="bool" value="true"/>
+    <property name="double_click_time" type="int" value="250"/>
+    <property name="double_click_action" type="string" value="maximize"/>
+    <property name="scroll_workspaces" type="bool" value="true"/>
+    <property name="zoom_desktop" type="bool" value="true"/>
+    <property name="horiz_scroll_opacity" type="bool" value="false"/>
+    <property name="activate_action" type="string" value="bring"/>
+  </property>
+</channel>

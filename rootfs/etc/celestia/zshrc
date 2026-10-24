@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Celestia Shell — Zsh configuration for AURA OS
+#  System defaults live here; your ~/.zshrc sources this file, so OS updates
+#  can improve Celestia without overwriting your personal tweaks.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Only for interactive shells
+[[ $- != *i* ]] && return
+
+# ── History ──────────────────────────────────────────────────────────────────
+HISTFILE="$HOME/.celestia_history"
+HISTSIZE=10000
+SAVEHIST=10000
+setopt SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_REDUCE_BLANKS
+setopt AUTO_CD EXTENDED_GLOB INTERACTIVE_COMMENTS NO_BEEP
+
+# ── Completion ───────────────────────────────────────────────────────────────
+autoload -Uz compinit && compinit -d "$HOME/.cache/celestia-zdump"
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*'
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+zstyle ':completion:*:descriptions' format '%F{cyan}── %d ──%f'
+zstyle ':completion:*:warnings' format '%F{yellow}no matches for: %d%f'
+
+# ── Colors ───────────────────────────────────────────────────────────────────
+export CLICOLOR=1
+export LS_COLORS='di=1;36:ln=1;35:ex=1;32:*.tar.gz=1;31:*.zip=1;31:*.png=1;35:*.jpg=1;35'
+alias ls='ls --color=auto --group-directories-first'
+alias grep='grep --color=auto'
+export LESS='-R'
+export LESS_TERMCAP_md=$'\e[1;36m' LESS_TERMCAP_me=$'\e[0m'
+export LESS_TERMCAP_us=$'\e[1;34m' LESS_TERMCAP_ue=$'\e[0m'
+
+# ── Git-aware prompt ─────────────────────────────────────────────────────────
+autoload -Uz vcs_info
+zstyle ':vcs_info:git:*' formats ' %F{magenta}(%b)%f'
+zstyle ':vcs_info:git:*' actionformats ' %F{magenta}(%b|%a)%f'
+precmd_functions+=(vcs_info)
+setopt PROMPT_SUBST
+
+# Two-line Celestia prompt: ▲ user@aura  ~/path (branch)
+#                          ➜
+PROMPT='%F{cyan}▲%f %F{blue}%n@%m%f %F{cyan}%~%f${vcs_info_msg_0_}
+%(?.%F{green}➜.%F{red}➜)%f '
+RPROMPT='%F{240}%T%f'
+
+# ── AURA aliases & helpers ───────────────────────────────────────────────────
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias gs='git status'
+alias gp='git pull'
+alias open='aura open'
+alias afetch='aura fetch'
+alias ainstall='aura install'
+alias asearch='aura search'
+alias aupdate='aura update && aura upgrade'
+alias help-me='aura help'
+
+# mkcd — create a folder and step into it
+mkcd() { mkdir -p "$1" && cd "$1"; }
+
+# extract — unpack almost any archive:  extract files.zip
+extract() {
+  if [[ ! -f "$1" ]]; then echo "extract: '$1' is not a file" >&2; return 1; fi
+  case "$1" in
+    *.tar.gz|*.tgz)   tar xzf "$1" ;;
+    *.tar.xz)         tar xJf "$1" ;;
+    *.tar.bz2)        tar xjf "$1" ;;
+    *.tar.zst)        tar --zstd -xf "$1" ;;
+    *.zip)            unzip "$1" ;;
+    *.7z)             7z x "$1" ;;
+    *.gz)             gunzip -k "$1" ;;
+    *.deb)            ar x "$1" ;;
+    *) echo "extract: don't know how to unpack '$1'" >&2; return 1 ;;
+  esac
+}
+
+# celestia — show the welcome banner again
+celestia() {
+  command -v aura >/dev/null && aura fetch
+  echo
+  echo "  New here?  Try:  aura help     ·     aura tutorial     ·     aura apps"
+}
+
+# ── Plugins (installed as Debian packages; loaded only if present) ──────────
+[[ -r /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
+  source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -r /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+  source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+[[ -r /usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh ]] && \
+  source /usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh
+
+# ── Key bindings ─────────────────────────────────────────────────────────────
+bindkey -e                                   # familiar emacs-style editing
+bindkey '^[[A' history-substring-search-up 2>/dev/null
+bindkey '^[[B' history-substring-search-down 2>/dev/null
+bindkey '^[[H' beginning-of-line
+bindkey '^[[F' end-of-line
+bindkey '^[[3~' delete-char
+bindkey '^[[1;5C' forward-word
+bindkey '^[[1;5D' backward-word
+# Ctrl+R: fuzzy history if fzf is installed, classic search otherwise
+if command -v fzf >/dev/null 2>&1; then
+  [[ -r /usr/share/doc/fzf/examples/key-bindings.zsh ]] && \
+    source /usr/share/doc/fzf/examples/key-bindings.zsh
+fi
+
+# ── PATH ─────────────────────────────────────────────────────────────────────
+[[ -d "$HOME/.local/bin" ]] && path=("$HOME/.local/bin" $path)
+[[ -d "$HOME/bin" ]] && path=("$HOME/bin" $path)
+export PATH
+
+# ── First-terminal welcome ───────────────────────────────────────────────────
+if [[ ! -f "$HOME/.config/aura/.celestia-welcomed" ]]; then
+  mkdir -p "$HOME/.config/aura" 2>/dev/null
+  celestia
+  echo "  Tip: run  aura tutorial  for a 5-minute guided tour of this shell."
+  echo
+  touch "$HOME/.config/aura/.celestia-welcomed" 2>/dev/null
+fi

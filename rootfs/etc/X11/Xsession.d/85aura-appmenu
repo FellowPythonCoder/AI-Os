@@ -1,0 +1,11 @@
+# AURA OS: export GTK application menus to the top menu bar when the
+# appmenu GTK module is installed (package: appmenu-gtk3-module).
+for _mod in /usr/lib/*-linux-gnu/gtk-3.0/modules/libappmenu-gtk-module.so; do
+    if [ -e "$_mod" ]; then
+        case ":${GTK_MODULES:-}:" in
+            *":appmenu-gtk-module:"*) ;;
+            *) GTK_MODULES="${GTK_MODULES:+$GTK_MODULES:}appmenu-gtk-module"; export GTK_MODULES ;;
+        esac
+    fi
+done
+unset _mod

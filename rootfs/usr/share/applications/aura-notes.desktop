@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Notes
+Comment=Searchable notes with Markdown support
+Exec=aura-notes
+Icon=aura-notes
+Terminal=false
+Categories=Office;Utility;
+StartupNotify=true

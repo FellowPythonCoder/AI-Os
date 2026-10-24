@@ -1,0 +1,15 @@
+PRETTY_NAME="AURA OS 1.0 (Aurora Peaks)"
+NAME="AURA OS"
+VERSION_ID="1.0"
+VERSION="1.0 (Aurora Peaks)"
+VERSION_CODENAME=aurora-peaks
+ID=aura
+ID_LIKE=debian
+HOME_URL="https://github.com/FellowPythonCoder/AI-Os"
+SUPPORT_URL="https://github.com/FellowPythonCoder/AI-Os/issues"
+BUG_REPORT_URL="https://github.com/FellowPythonCoder/AI-Os/issues"
+PRIVACY_POLICY_URL="https://github.com/FellowPythonCoder/AI-Os"
+LOGO=aura-logo
+ANSI_COLOR="1;36"
+AURA_BASED_ON="Debian GNU/Linux 12 (bookworm)"
+DEBIAN_CODENAME=bookworm

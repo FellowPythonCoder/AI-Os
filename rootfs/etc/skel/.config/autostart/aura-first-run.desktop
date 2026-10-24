@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome to AURA
+Comment=First-run setup and personalization
+Exec=sh -c "test -f ~/.config/aura/first-run-done || aura-welcome"
+Icon=aura-welcome
+Terminal=false
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

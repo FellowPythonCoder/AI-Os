@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Calculator
+Comment=Standard and scientific calculator
+Exec=galculator
+Icon=aura-calculator
+Terminal=false
+Categories=Utility;Calculator;Math;
+StartupNotify=true

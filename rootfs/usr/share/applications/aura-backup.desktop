@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Backup
+Comment=System snapshots and restore points (Timeshift)
+Exec=timeshift-gtk
+Icon=aura-backup
+Terminal=false
+Categories=System;Archiving;Settings;
+StartupNotify=true

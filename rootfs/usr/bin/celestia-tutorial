@@ -1,0 +1,138 @@
+#!/bin/bash
+# ─────────────────────────────────────────────────────────────────────────────
+#  Celestia Shell — interactive tutorial for AURA OS
+#  A friendly, five-minute, hands-on tour. Safe: nothing here modifies the
+#  system; lesson commands run with --dry-run or are read-only.
+# ─────────────────────────────────────────────────────────────────────────────
+
+B=$'\033[1;36m'; G=$'\033[1;32m'; Y=$'\033[1;33m'; D=$'\033[2m'; R=$'\033[0m'
+SCORE=0; TOTAL=0
+
+pause() { printf "\n%sPress Enter to continue…%s" "$D" "$R"; read -r _; }
+
+try_cmd() {
+    # $1 = exact command the user should type  ·  $2 = explanation shown first
+    TOTAL=$((TOTAL + 1))
+    echo "  $2"
+    printf "  %sType this and press Enter:%s  %s%s%s\n" "$D" "$R" "$B" "$1" "$R"
+    while true; do
+        printf "  %s➜%s " "$B" "$R"
+        if ! read -r typed; then
+            echo; echo "  (input closed — ending the tutorial)"; exit 0
+        fi
+        typed="$(echo "$typed" | sed 's/[[:space:]]*$//')"
+        if [[ "$typed" == "$1" ]]; then
+            echo "  ${G}✓ Perfect.${R} Here's what it really does:"
+            echo
+            eval "$1" 2>&1 | sed 's/^/    /' | head -n 18
+            SCORE=$((SCORE + 1)); return
+        elif [[ "$typed" == "skip" ]]; then
+            echo "  ${Y}Skipped.${R} (The command was: $1)"; return
+        else
+            printf "  %sAlmost — type it exactly as shown, or type 'skip'.%s\n" "$D" "$R"
+        fi
+    done
+}
+
+header() {
+    clear 2>/dev/null
+    echo "${B}🏔  Celestia Shell Tutorial${R}   ${D}lesson $1 of 6 — $2${R}"
+    echo "${D}──────────────────────────────────────────────────────────────${R}"
+    echo
+}
+
+# ── Lesson 1 ─────────────────────────────────────────────────────────────────
+header 1 "Welcome to the shell"
+cat <<EOF
+  Celestia Shell is a real Linux terminal. Everything you type here is a
+  genuine command — the same ones developers use every day. AURA adds the
+  friendly ${B}aura${R} command on top.
+
+  Let's meet your computer first.
+
+EOF
+try_cmd "aura fetch" "This shows the AURA logo and a summary of your virtual machine."
+pause
+
+# ── Lesson 2 ─────────────────────────────────────────────────────────────────
+header 2 "Finding your way around"
+cat <<'EOF'
+  The three most useful everyday commands:
+
+    pwd     "print working directory" — where am I?
+    ls      list the files here
+    cd      change directory (cd .. goes up one level)
+
+  Try listing what's around you:
+
+EOF
+try_cmd "ls" "List the files in the current folder."
+pause
+
+# ── Lesson 3 ─────────────────────────────────────────────────────────────────
+header 3 "Your AURA apps"
+cat <<'EOF'
+  AURA knows every application installed on this system. You can list
+  them, search them, and open them by name — no menus required.
+
+EOF
+try_cmd "aura apps --search calc" "Find installed apps matching a word."
+pause
+
+# ── Lesson 4 ─────────────────────────────────────────────────────────────────
+header 4 "Installing real software"
+cat <<'EOF'
+  AURA uses Debian's package repositories — tens of thousands of real,
+  free applications. Searching is instant and safe; installing asks for
+  your password because it changes the system.
+
+    aura search <words>     find packages
+    aura install <name>     install (asks for your password)
+    aura update             check for system updates
+
+  Let's preview an install. --dry-run shows exactly what WOULD happen
+  without changing anything — a great habit while learning.
+
+EOF
+try_cmd "aura install --dry-run htop" "Preview installing 'htop', a tiny system viewer."
+pause
+
+# ── Lesson 5 ─────────────────────────────────────────────────────────────────
+header 5 "Make AURA yours"
+cat <<'EOF'
+  Themes, accent colors, wallpapers and the dock are all one command
+  away. Changes apply instantly to the whole desktop.
+
+    aura theme light | dark        appearance mode
+    aura theme accent glacier      accent color
+    aura wallpaper list            see wallpapers
+    aura dock size 64              resize the dock
+
+EOF
+try_cmd "aura wallpaper list" "List the built-in AURA wallpapers."
+pause
+
+# ── Lesson 6 ─────────────────────────────────────────────────────────────────
+header 6 "Checking the health of your system"
+cat <<'EOF'
+  Two commands every AURA user should know:
+
+    aura system    detailed info (incl. RAM given to this VM in UTM)
+    aura doctor    quick health check: disk, memory, network, UTM tools
+
+EOF
+try_cmd "aura doctor" "Run the health check now. Yellow warnings include their own fix."
+
+# ── Finish ───────────────────────────────────────────────────────────────────
+echo
+echo "${D}──────────────────────────────────────────────────────────────${R}"
+echo "${B}🎓 Tutorial complete — you scored ${SCORE}/${TOTAL}.${R}"
+echo
+echo "  Keep exploring:"
+echo "    ${B}aura help${R}        the full command guide"
+echo "    ${B}aura system${R}      everything about this machine"
+echo "    ${B}celestia${R}         show the welcome banner again"
+echo
+echo "  Remember: standard Linux commands all work here — git, python3,"
+echo "  ssh, curl, node and thousands more. Welcome to AURA OS. 🏔"
+echo

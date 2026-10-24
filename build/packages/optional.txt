@@ -1,0 +1,10 @@
+# Installed only if available — failures here never abort an install.
+xfce4-sensors-plugin
+mugshot
+menulibre
+picom
+conky-std
+papirus-icon-theme
+gtk2-engines-murrine
+xfce4-verve-plugin
+spice-webdavd

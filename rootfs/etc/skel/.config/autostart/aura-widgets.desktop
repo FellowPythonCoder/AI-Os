@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AURA Widgets
+Exec=sh -c "conky -c $HOME/.config/conky/aura.conkyrc"
+Icon=aura-monitor
+Terminal=false
+X-GNOME-Autostart-enabled=false
+NoDisplay=true

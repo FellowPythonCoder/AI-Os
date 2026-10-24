@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Welcome to AURA
+Comment=Set up and personalize AURA OS
+Exec=aura-welcome
+Icon=aura-welcome
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true

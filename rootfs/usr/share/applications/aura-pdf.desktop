@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA PDF
+Comment=Read PDF and other documents
+Exec=evince %F
+Icon=aura-pdf
+Terminal=false
+Categories=Office;Viewer;
+StartupNotify=true
+MimeType=application/pdf;application/postscript;image/vnd.djvu;

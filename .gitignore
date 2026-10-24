@@ -1,0 +1,25 @@
+# Build outputs
+build/out/
+build/live/*.iso
+build/live/.build/
+build/live/binary*
+build/live/cache/
+build/live/chroot/
+build/live/config/*-build.txt
+build/live/live-image-*
+build/debos/*.img
+*.qcow2
+*.img
+*.iso
+
+# Assembled-at-build-time (kept in repo only as sources elsewhere)
+build/live/config/includes.chroot/*
+!build/live/config/includes.chroot/.gitkeep
+
+# Python / editors
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.idea/
+.DS_Store

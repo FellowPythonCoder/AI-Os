@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Help
+Comment=Guides, shortcuts and troubleshooting
+Exec=aura-help
+Icon=aura-help
+Terminal=false
+Categories=Documentation;System;
+StartupNotify=true

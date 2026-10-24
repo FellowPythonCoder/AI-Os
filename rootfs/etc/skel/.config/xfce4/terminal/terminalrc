@@ -1,0 +1,26 @@
+[Configuration]
+ColorScheme=Celestia
+FontName=JetBrains Mono 11
+FontUseSystem=FALSE
+ColorForeground=#d9e8fa
+ColorBackground=#0a1428
+ColorCursor=#56c7f2
+ColorPalette=#1b2b4a;#e35d6a;#3fc48f;#e8c33c;#2f7fe0;#9d7ce0;#2fc4c4;#c7d6ea;#3d5578;#f2768a;#5fd9ae;#f2d763;#57a8f2;#bda1f2;#6fe3de;#eaf3fd
+BackgroundMode=TERMINAL_BACKGROUND_TRANSPARENT
+BackgroundDarkness=0.920000
+ScrollingBar=TERMINAL_SCROLLBAR_RIGHT
+ScrollingUnlimited=TRUE
+MiscAlwaysShowTabs=TRUE
+MiscBell=FALSE
+MiscCursorBlinks=TRUE
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
+MiscDefaultGeometry=100x30
+MiscConfirmClose=FALSE
+MiscCycleTabs=TRUE
+MiscShowRelaunchDialog=FALSE
+MiscSlimTabs=FALSE
+MiscNewTabAdjacent=FALSE
+MiscSearchDialogOpacity=100
+MiscShowUnsafePasteDialog=FALSE
+MiscRightClickAction=TERMINAL_RIGHT_CLICK_ACTION_CONTEXT_MENU
+TitleInitial=Celestia Shell

@@ -1,0 +1,156 @@
+# AURA OS core packages — Debian 12 (bookworm) names, all available on arm64.
+# One package per line. Sections are comments. Used by installer/, live-build
+# and debos so every AURA system gets the same foundation.
+
+# --- system basics ---
+systemd
+systemd-sysv
+dbus
+sudo
+locales
+tzdata
+keyboard-configuration
+console-setup
+polkitd
+policykit-1-gnome
+udisks2
+gvfs
+gvfs-fuse
+xdg-utils
+xdg-user-dirs
+xdg-desktop-portal
+xdg-desktop-portal-gtk
+desktop-file-utils
+shared-mime-info
+ca-certificates
+gnupg
+curl
+wget
+openssh-client
+rsync
+bash-completion
+man-db
+less
+nano
+command-not-found
+
+# --- networking ---
+ufw
+gufw
+network-manager
+network-manager-gnome
+wpasupplicant
+iw
+dnsmasq-base
+iptables
+
+# --- UTM / QEMU guest integration ---
+spice-vdagent
+qemu-guest-agent
+
+# --- display server, login, boot splash ---
+xorg
+xserver-xorg-input-libinput
+lightdm
+lightdm-gtk-greeter
+lightdm-slick-greeter
+Plymouth
+mesa-utils
+
+# --- Xfce desktop (AURA's foundation) ---
+xfce4-panel
+xfce4-session
+xfce4-settings
+xfwm4
+xfdesktop4
+xfconf
+thunar
+thunar-volman
+thunar-archive-plugin
+tumbler
+xfce4-appfinder
+xfce4-notifyd
+xfce4-power-manager
+xfce4-screensaver
+xfce4-screenshooter
+xfce4-taskmanager
+xfce4-terminal
+xfce4-whiskermenu-plugin
+xfce4-appmenu-plugin
+appmenu-gtk3-module
+xfce4-clipman-plugin
+xfce4-pulseaudio-plugin
+mousepad
+ristretto
+Parole
+orage
+catfish
+plank
+libcanberra-gtk3-module
+
+# --- audio (PipeWire) ---
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+pavucontrol
+alsa-utils
+
+# --- AURA's mapped applications (real programs behind AURA names) ---
+firefox-esr
+geany
+galculator
+xarchiver
+evince
+uget
+timeshift
+
+# --- fonts & icons fallback ---
+fonts-inter
+fonts-jetbrains-mono
+fonts-noto-core
+fonts-noto-color-emoji
+fonts-dejavu
+adwaita-icon-theme
+librsvg2-bin
+imagemagick
+
+# --- Python (AURA apps & CLI) ---
+python3
+python3-gi
+python3-gi-cairo
+gir1.2-gtk-3.0
+python3-pip-whl
+pipx
+
+# --- Celestia Shell ---
+zsh
+zsh-autosuggestions
+zsh-syntax-highlighting
+fzf
+
+# --- developer tools ---
+git
+build-essential
+pkg-config
+cmake
+gdb
+python3-venv
+python3-dev
+nodejs
+npm
+tmux
+vim
+htop
+btop
+tree
+ripgrep
+fd-find
+bat
+jq
+zip
+unzip
+p7zip-full
+
+# --- flatpak (App Center's second source) ---
+flatpak

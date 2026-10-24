@@ -1,0 +1,44 @@
+# AURA OS system defaults (GLib schema overrides).
+# Applied system-wide; user changes (e.g. via `aura` / AURA Settings) win.
+
+[org.gnome.desktop.interface]
+gtk-theme = 'AuraDark'
+icon-theme = 'AuraIcons'
+cursor-theme = 'AuraCursor'
+cursor-size = 24
+font-name = 'Inter 11'
+monospace-font-name = 'JetBrains Mono 10'
+color-scheme = 'prefer-dark'
+clock-format = '24h'
+show-battery-percentage = true
+
+[org.gnome.desktop.background]
+picture-uri = 'file:///usr/share/backgrounds/aura/aura-midnight-peaks.jpg'
+picture-uri-dark = 'file:///usr/share/backgrounds/aura/aura-midnight-peaks.jpg'
+picture-options = 'zoom'
+primary-color = '#0a1730'
+
+[org.gnome.desktop.screensaver]
+picture-uri = 'file:///usr/share/backgrounds/aura/aura-midnight-peaks.jpg'
+primary-color = '#0a1730'
+lock-enabled = true
+
+[org.gnome.desktop.sound]
+theme-name = 'aura'
+event-sounds = true
+
+# Plank dock (relocatable schema → path-qualified override)
+[net.launchpad.plank.dock.settings:/net/launchpad/plank/docks/dock1/]
+theme = 'Aura'
+position = 'bottom'
+alignment = 'center'
+items-alignment = 'center'
+icon-size = 52
+zoom-enabled = true
+zoom-percent = 150
+hide-mode = 'none'
+pinned-only = false
+show-dock-item = false
+lock-items = false
+pressure-reveal = false
+tooltips-enabled = true

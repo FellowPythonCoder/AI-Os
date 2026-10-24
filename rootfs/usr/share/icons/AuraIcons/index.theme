@@ -1,0 +1,34 @@
+[Icon Theme]
+Name=AuraIcons
+Comment=AURA OS blue mountain icon theme
+Inherits=Papirus,Adwaita,hicolor
+Example=folder
+Directories=scalable/apps,scalable/places,scalable/status,scalable/devices
+
+[scalable/apps]
+Size=256
+Context=Applications
+Type=Scalable
+MinSize=16
+MaxSize=512
+
+[scalable/places]
+Size=256
+Context=Places
+Type=Scalable
+MinSize=16
+MaxSize=512
+
+[scalable/status]
+Size=256
+Context=Status
+Type=Scalable
+MinSize=16
+MaxSize=512
+
+[scalable/devices]
+Size=256
+Context=Devices
+Type=Scalable
+MinSize=16
+MaxSize=512

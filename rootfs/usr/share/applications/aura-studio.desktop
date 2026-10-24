@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Studio
+Comment=Code editor with projects, Git and a built-in terminal
+Exec=geany %F
+Icon=aura-studio
+Terminal=false
+Categories=Development;IDE;
+StartupNotify=true

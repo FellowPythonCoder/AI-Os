@@ -1,0 +1,57 @@
+name: Build AURA OS ISO (live-build, ARM64)
+
+# Builds the bootable live/installer ISO on GitHub's native ARM64 runners.
+# Manual trigger (Actions tab) or version tags — the build downloads the
+# full Debian package set, so it is intentionally not run on every push.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  iso:
+    name: Live/installer ISO
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+
+      - name: Install live-build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends live-build rsync
+
+      - name: Build ISO
+        run: sudo ./build/build-iso.sh
+
+      - name: Show artifacts
+        run: ls -lh build/out/
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AURA-OS-1.0-arm64-iso
+          path: |
+            build/out/AURA-OS-1.0-arm64.iso
+            build/out/AURA-OS-1.0-arm64.iso.sha256
+          if-no-files-found: warn
+
+      - name: Attach to release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/out/AURA-OS-1.0-arm64.iso
+            build/out/AURA-OS-1.0-arm64.iso.sha256
+          body: |
+            🏔 **AURA OS** — bootable ARM64 live/installer ISO for UTM on Apple Silicon.
+
+            Boot it in an ARM64 "Virtualize" VM to try AURA live, then click
+            **Install AURA OS** on the desktop. (Guide: docs/INSTALL-UTM.md)

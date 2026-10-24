@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Install AURA OS
+Comment=Install AURA OS onto this virtual machine's disk
+Exec=pkexec calamares
+Icon=aura-logo
+Terminal=false
+Categories=System;
+StartupNotify=true

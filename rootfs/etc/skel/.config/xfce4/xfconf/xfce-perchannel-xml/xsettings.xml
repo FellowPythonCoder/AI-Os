@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS default appearance (xsettings channel) -->
+<channel name="xsettings" version="1.0">
+  <property name="Net" type="empty">
+    <property name="ThemeName" type="string" value="AuraDark"/>
+    <property name="IconThemeName" type="string" value="AuraIcons"/>
+    <property name="SoundThemeName" type="string" value="aura"/>
+    <property name="EnableEventSounds" type="bool" value="true"/>
+    <property name="EnableInputFeedbackSounds" type="bool" value="false"/>
+  </property>
+  <property name="Gtk" type="empty">
+    <property name="FontName" type="string" value="Inter 11"/>
+    <property name="MonospaceFontName" type="string" value="JetBrains Mono 10"/>
+    <property name="CursorThemeName" type="string" value="AuraCursor"/>
+    <property name="CursorThemeSize" type="int" value="24"/>
+    <property name="ToolbarStyle" type="string" value="icons"/>
+    <property name="MenuImages" type="bool" value="true"/>
+    <property name="ButtonImages" type="bool" value="true"/>
+    <property name="DecorationLayout" type="string" value="close,minimize,maximize:menu"/>
+    <property name="DialogsUseHeader" type="bool" value="true"/>
+  </property>
+  <property name="Xft" type="empty">
+    <property name="Antialias" type="int" value="1"/>
+    <property name="Hinting" type="int" value="1"/>
+    <property name="HintStyle" type="string" value="hintslight"/>
+    <property name="RGBA" type="string" value="rgb"/>
+  </property>
+</channel>

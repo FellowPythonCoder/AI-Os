@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Monitor
+Comment=Live CPU, memory, disk and network graphs
+Exec=aura-monitor
+Icon=aura-monitor
+Terminal=false
+Categories=System;Monitor;
+StartupNotify=true

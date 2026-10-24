@@ -1,0 +1,78 @@
+favorites=aura-finder.desktop,celestia-shell.desktop,aura-browser.desktop,aura-settings.desktop,aura-appcenter.desktop,aura-text.desktop,aura-studio.desktop,aura-notes.desktop,aura-photos.desktop,aura-media.desktop,aura-help.desktop
+button-icon=aura-logo
+button-single-row=true
+show-button-icon=true
+show-button-title=true
+button-title=AURA
+launcher-show-name=true
+launcher-show-description=true
+launcher-show-tooltip=true
+item-icon-size=2
+hover-switch-category=false
+category-icon-size=1
+load-hierarchy=false
+view-as-icons=false
+default-category=0
+recent-items-max=10
+favorites-in-recent=true
+position-search-alternate=false
+position-commands-alternate=false
+position-categories-alternate=false
+stay-on-focus-out=false
+confirm-session-command=true
+menu-width=480
+menu-height=560
+menu-opacity=96
+command-settings=aura-settings
+show-command-settings=true
+command-lockscreen=xflock4
+show-command-lockscreen=true
+command-switchuser=gdmflexiserver
+show-command-switchuser=false
+command-logoutuser=xfce4-session-logout --logout --fast
+show-command-logoutuser=false
+command-restart=xfce4-session-logout --reboot --fast
+show-command-restart=false
+command-shutdown=xfce4-session-logout --halt --fast
+show-command-shutdown=false
+command-suspend=xfce4-session-logout --suspend --fast
+show-command-suspend=false
+command-hibernate=xfce4-session-logout --hibernate --fast
+show-command-hibernate=false
+command-logout=xfce4-session-logout
+show-command-logout=true
+command-menueditor=menulibre
+show-command-menueditor=false
+command-profile=mugshot
+show-command-profile=false
+search-actions=5
+
+[action0]
+name=Search the Web
+pattern=?
+command=exo-open --launch WebBrowser https://duckduckgo.com/?q=%s
+regex=false
+
+[action1]
+name=Search Files
+pattern=#
+command=catfish --path=~ %s
+regex=false
+
+[action2]
+name=Run in Celestia Shell
+pattern=!
+command=xfce4-terminal --title="Celestia Shell" -e "%s"
+regex=false
+
+[action3]
+name=AURA command
+pattern=aura
+command=xfce4-terminal --title="Celestia Shell" -e "aura %s; echo; read -p 'Press Enter to close…'"
+regex=false
+
+[action4]
+name=Calculator
+pattern==
+command=galculator
+regex=false

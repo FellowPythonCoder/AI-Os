@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+"""
+AURA Monitor — live CPU / memory / network graphs and a process list,
+read straight from /proc. No daemons, no fake data.
+"""
+import os
+import sys
+import time
+from collections import deque
+
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib  # noqa: E402
+import cairo  # noqa: E402
+
+HISTORY = 60
+
+
+def read_cpu():
+    with open("/proc/stat", encoding="utf-8") as fh:
+        parts = fh.readline().split()[1:]
+    vals = [int(x) for x in parts]
+    idle = vals[3] + (vals[4] if len(vals) > 4 else 0)
+    return sum(vals), idle
+
+
+def read_mem():
+    info = {}
+    with open("/proc/meminfo", encoding="utf-8") as fh:
+        for line in fh:
+            p = line.split()
+            if len(p) >= 2:
+                info[p[0].rstrip(":")] = int(p[1])
+    total = info.get("MemTotal", 0)
+    avail = info.get("MemAvailable", 0)
+    swap_t = info.get("SwapTotal", 0)
+    swap_f = info.get("SwapFree", 0)
+    return total, total - avail, swap_t, swap_t - swap_f
+
+
+def read_net():
+    rx = tx = 0
+    try:
+        with open("/proc/net/dev", encoding="utf-8") as fh:
+            for line in fh:
+                if ":" not in line:
+                    continue
+                name, rest = line.split(":", 1)
+                if name.strip() == "lo":
+                    continue
+                f = rest.split()
+                rx += int(f[0])
+                tx += int(f[8])
+    except (OSError, ValueError, IndexError):
+        pass
+    return rx, tx
+
+
+def read_processes(limit=12):
+    procs = []
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            with open(f"/proc/{pid}/stat", encoding="utf-8",
+                      errors="replace") as fh:
+                stat = fh.read()
+            comm = stat[stat.index("(") + 1:stat.rindex(")")]
+            rest = stat[stat.rindex(")") + 2:].split()
+            utime, stime = int(rest[11]), int(rest[12])
+            rss = int(rest[21]) * os.sysconf("SC_PAGE_SIZE") // 1024  # KiB
+            procs.append((int(pid), comm, utime + stime, rss))
+        except (OSError, ValueError, IndexError):
+            continue
+    return procs
+
+
+class Graph(Gtk.DrawingArea):
+    def __init__(self, color, title):
+        super().__init__()
+        self.set_size_request(-1, 86)
+        self.color = color
+        self.title = title
+        self.data = deque([0.0] * HISTORY, maxlen=HISTORY)
+        self.max_value = 100.0
+        self.label = ""
+        self.connect("draw", self.on_draw)
+
+    def push(self, value, label, max_value=None):
+        self.data.append(value)
+        self.label = label
+        if max_value:
+            self.max_value = max_value
+        self.queue_draw()
+
+    def on_draw(self, _w, cr):
+        w, h = self.get_allocated_width(), self.get_allocated_height()
+        sc = self.get_style_context()
+        _ok, bg = sc.lookup_color("theme_base_color")
+        _ok2, fg = sc.lookup_color("theme_fg_color")
+        cr.set_source_rgba(bg.red, bg.green, bg.blue, 1)
+        cr.rectangle(0, 0, w, h)
+        cr.fill()
+        # gridlines
+        cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.12)
+        cr.set_line_width(1)
+        for i in range(1, 4):
+            y = h * i / 4
+            cr.move_to(0, y)
+            cr.line_to(w, y)
+        cr.stroke()
+        # area + line
+        step = w / (HISTORY - 1)
+        cr.move_to(0, h)
+        for i, v in enumerate(self.data):
+            y = h - 4 - (h - 10) * min(v / self.max_value, 1.0)
+            cr.line_to(i * step, y)
+        cr.line_to(w, h)
+        cr.close_path()
+        cr.set_source_rgba(*self.color, 0.25)
+        cr.fill_preserve()
+        cr.set_source_rgba(*self.color, 1.0)
+        cr.set_line_width(1.8)
+        cr.stroke()
+        # title + current value
+        cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.9)
+        cr.set_font_size(12)
+        cr.move_to(8, 16)
+        cr.show_text(f"{self.title}   {self.label}")
+        return False
+
+
+class Monitor(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="AURA Monitor")
+        self.set_default_size(760, 620)
+        self.set_border_width(14)
+        try:
+            self.set_icon_name("aura-monitor")
+        except Exception:
+            pass
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        self.add(vbox)
+
+        head = Gtk.Label()
+        head.set_markup('<span size="large" weight="bold">System Monitor</span>')
+        head.set_xalign(0)
+        vbox.pack_start(head, False, False, 0)
+        self.sub = Gtk.Label(label="Reading live data from this virtual machine…")
+        self.sub.set_xalign(0)
+        self.sub.get_style_context().add_class("dim-label")
+        vbox.pack_start(self.sub, False, False, 0)
+
+        self.cpu = Graph((0.37, 0.78, 0.95), "CPU")
+        self.mem = Graph((0.35, 0.85, 0.65), "Memory (guest RAM)")
+        self.net = Graph((0.72, 0.62, 0.95), "Network ↓")
+        for g in (self.cpu, self.mem, self.net):
+            vbox.pack_start(g, False, False, 0)
+
+        self.disk_label = Gtk.Label()
+        self.disk_label.set_xalign(0)
+        vbox.pack_start(self.disk_label, False, False, 0)
+
+        lbl = Gtk.Label()
+        lbl.set_markup("<b>Top processes</b> (by processor time)")
+        lbl.set_xalign(0)
+        vbox.pack_start(lbl, False, False, 0)
+
+        self.store = Gtk.ListStore(int, str, str, str)
+        tree = Gtk.TreeView(model=self.store)
+        for i, (t, width) in enumerate((("PID", 70), ("Process", 240),
+                                         ("CPU time", 120), ("Memory", 120))):
+            col = Gtk.TreeViewColumn(t, Gtk.CellRendererText(), text=i)
+            col.set_min_width(width)
+            tree.append_column(col)
+        sw = Gtk.ScrolledWindow()
+        sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        sw.add(tree)
+        vbox.pack_start(sw, True, True, 0)
+
+        foot = Gtk.Label()
+        foot.set_markup('<span size="small">Memory shown is the RAM allocated to '
+                        'this VM in UTM. To change it, power the VM off and edit '
+                        'its settings in UTM.</span>')
+        foot.set_line_wrap(True)
+        foot.set_xalign(0)
+        vbox.pack_start(foot, False, False, 0)
+
+        self.prev_cpu = read_cpu()
+        self.prev_net = read_net()
+        self.prev_time = time.time()
+        self.net_max = 1024.0
+        GLib.timeout_add(1000, self.tick)
+        self.tick()
+
+    def tick(self):
+        now = time.time()
+        dt = max(now - self.prev_time, 0.001)
+        total, idle = read_cpu()
+        d_total = total - self.prev_cpu[0]
+        d_idle = idle - self.prev_cpu[1]
+        cpu_pct = 100.0 * (1 - d_idle / d_total) if d_total else 0.0
+        self.prev_cpu = (total, idle)
+        cores = os.cpu_count() or 1
+        self.cpu.push(cpu_pct, f"{cpu_pct:4.1f}%  ·  {cores} cores", 100)
+
+        mem_t, mem_u, sw_t, sw_u = read_mem()
+        mem_pct = 100.0 * mem_u / mem_t if mem_t else 0
+        self.mem.push(mem_pct,
+                      f"{mem_pct:4.1f}%  ·  {mem_u/1048576:.1f} of "
+                      f"{mem_t/1048576:.1f} GiB" +
+                      (f"  ·  swap {sw_u/1048576:.1f}/{sw_t/1048576:.1f} GiB"
+                       if sw_t else ""), 100)
+
+        rx, tx = read_net()
+        down = (rx - self.prev_net[0]) / dt
+        up = (tx - self.prev_net[1]) / dt
+        self.prev_net = (rx, tx)
+        self.net_max = max(self.net_max * 0.98, down, 1024.0)
+        self.net.push(down, f"{self._fmt_rate(down)}   ↑ {self._fmt_rate(up)}",
+                      self.net_max)
+        self.prev_time = now
+
+        try:
+            st = os.statvfs("/")
+            total_gb = st.f_blocks * st.f_frsize / 1e9
+            used_gb = total_gb - st.f_bavail * st.f_frsize / 1e9
+            self.disk_label.set_text(
+                f"Disk: {used_gb:.0f} GB used of {total_gb:.0f} GB "
+                f"({100*used_gb/total_gb:.0f}%)")
+        except OSError:
+            pass
+
+        self.store.clear()
+        for pid, comm, ticks, rss in sorted(
+                read_processes(), key=lambda p: p[2], reverse=True)[:12]:
+            secs = ticks / os.sysconf("SC_CLK_TCK")
+            self.store.append([pid, comm, f"{secs/60:.1f} min"
+                               if secs >= 60 else f"{secs:.0f} s",
+                               f"{rss/1024:.0f} MiB"])
+        return True
+
+    @staticmethod
+    def _fmt_rate(bps):
+        for unit in ("B/s", "KiB/s", "MiB/s", "GiB/s"):
+            if abs(bps) < 1024 or unit == "GiB/s":
+                return f"{bps:.0f} {unit}"
+            bps /= 1024
+        return f"{bps:.1f} GiB/s"
+
+
+def main():
+    win = Monitor()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

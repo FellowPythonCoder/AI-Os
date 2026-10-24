@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Screenshot
+Comment=Capture the screen, a window or a region
+Exec=xfce4-screenshooter
+Icon=aura-screenshot
+Terminal=false
+Categories=Utility;Graphics;
+StartupNotify=true

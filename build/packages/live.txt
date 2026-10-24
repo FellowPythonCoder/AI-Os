@@ -1,0 +1,9 @@
+# Extra packages for the live ISO only (graphical installer + live plumbing).
+live-boot
+live-config
+live-config-systemd
+calamares
+calamares-settings-debian
+qml-module-qtquick2
+qml-module-qtquick-controls
+os-prober

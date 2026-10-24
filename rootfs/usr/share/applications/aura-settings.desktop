@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Settings
+Comment=Appearance, wallpaper, dock, terminal and more
+Exec=aura-settings
+Icon=aura-settings
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=true

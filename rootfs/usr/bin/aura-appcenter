@@ -1,0 +1,437 @@
+#!/usr/bin/env python3
+"""
+AURA App Center — browse, install, remove and update real applications.
+
+Backed by Debian APT and Flatpak/Flathub. Installs run through pkexec
+(graphical admin prompt) with live output; nothing happens silently.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib, Pango  # noqa: E402
+
+CATALOG_PATHS = ["/usr/share/aura/catalog.json",
+                 os.path.normpath(os.path.join(
+                     os.path.dirname(os.path.abspath(__file__)), "..",
+                     "share", "aura", "catalog.json"))]
+
+
+def load_catalog():
+    for p in CATALOG_PATHS:
+        try:
+            with open(p, encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+    return {"categories": []}
+
+
+def dpkg_installed(pkg):
+    try:
+        out = subprocess.check_output(
+            ["dpkg-query", "-W", "-f=${Status}", pkg],
+            text=True, stderr=subprocess.DEVNULL, timeout=5)
+        return "install ok installed" in out
+    except Exception:
+        return False
+
+
+def flatpak_installed(app_id):
+    try:
+        out = subprocess.check_output(["flatpak", "list", "--app",
+                                       "--columns=application"],
+                                      text=True, timeout=10)
+        return app_id in out.split()
+    except Exception:
+        return False
+
+
+class AppCenter(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="AURA App Center")
+        self.set_default_size(1020, 660)
+        try:
+            self.set_icon_name("aura-appcenter")
+        except Exception:
+            pass
+        self.catalog = load_catalog()
+        self.category = "all"
+        self.proc = None
+        self.flatpak_cache = None
+
+        header = Gtk.HeaderBar(title="AURA App Center",
+                               subtitle="Real apps from Debian & Flathub")
+        header.set_show_close_button(True)
+        self.set_titlebar(header)
+        b_updates = Gtk.Button(label="Check for Updates")
+        b_updates.connect("clicked", self.check_updates)
+        header.pack_end(b_updates)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(outer)
+        paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        paned.set_position(210)
+        outer.pack_start(paned, True, True, 0)
+
+        # left: categories
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        left.set_border_width(8)
+        self.search = Gtk.SearchEntry(placeholder_text="Search apps…")
+        self.search.connect("search-changed", lambda *_: self.populate())
+        left.pack_start(self.search, False, False, 0)
+        self.cat_list = Gtk.ListBox()
+        self.cat_list.connect("row-selected", self.on_category)
+        sw = Gtk.ScrolledWindow()
+        sw.add(self.cat_list)
+        left.pack_start(sw, True, True, 0)
+        self.repo_toggle = Gtk.CheckButton(
+            label="Also search all Debian packages")
+        self.repo_toggle.set_tooltip_text(
+            "Runs a real apt-cache search across the full repository "
+            "(60,000+ packages)")
+        left.pack_start(self.repo_toggle, False, False, 0)
+        paned.add1(left)
+
+        rows = [("all", "✨  All Apps"), ("installed", "✅  Installed")]
+        rows += [(c["id"], c["name"]) for c in self.catalog["categories"]]
+        for cid, name in rows:
+            row = Gtk.ListBoxRow()
+            lbl = Gtk.Label(label=name)
+            lbl.set_xalign(0)
+            lbl.set_margin_start(8)
+            lbl.set_margin_top(5)
+            lbl.set_margin_bottom(5)
+            row.add(lbl)
+            row.cid = cid
+            self.cat_list.add(row)
+        self.cat_list.show_all()
+
+        # right: app list
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        right.set_border_width(10)
+        self.headline = Gtk.Label()
+        self.headline.set_xalign(0)
+        right.pack_start(self.headline, False, False, 0)
+        self.app_list = Gtk.ListBox()
+        self.app_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        asw = Gtk.ScrolledWindow()
+        asw.add(self.app_list)
+        right.pack_start(asw, True, True, 0)
+        paned.add2(right)
+
+        # bottom: progress log
+        self.expander = Gtk.Expander(label="Install log")
+        self.expander.set_border_width(6)
+        logbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.spinner = Gtk.Spinner()
+        self.task_label = Gtk.Label(label="Ready.")
+        self.task_label.set_xalign(0)
+        trow = Gtk.Box(spacing=8)
+        trow.pack_start(self.spinner, False, False, 0)
+        trow.pack_start(self.task_label, True, True, 0)
+        logbox.pack_start(trow, False, False, 0)
+        self.log_buffer = Gtk.TextBuffer()
+        log_view = Gtk.TextView(buffer=self.log_buffer)
+        log_view.set_editable(False)
+        log_view.set_monospace(True)
+        lsw = Gtk.ScrolledWindow()
+        lsw.set_size_request(-1, 140)
+        lsw.add(log_view)
+        logbox.pack_start(lsw, True, True, 0)
+        self.expander.add(logbox)
+        outer.pack_start(self.expander, False, False, 0)
+
+        self.cat_list.select_row(self.cat_list.get_row_at_index(0))
+        self.populate()
+
+    # ------------------------------------------------------------------ list
+    def iter_apps(self):
+        for cat in self.catalog["categories"]:
+            for app in cat["apps"]:
+                yield cat, app
+
+    def app_installed(self, app):
+        if app.get("apt"):
+            return dpkg_installed(app["apt"])
+        if app.get("flatpak"):
+            if self.flatpak_cache is None:
+                try:
+                    out = subprocess.check_output(
+                        ["flatpak", "list", "--app", "--columns=application"],
+                        text=True, timeout=10)
+                    self.flatpak_cache = set(out.split())
+                except Exception:
+                    self.flatpak_cache = set()
+            return app["flatpak"] in self.flatpak_cache
+        return False
+
+    def on_category(self, _lb, row):
+        if row is not None:
+            self.category = row.cid
+            self.populate()
+
+    def populate(self):
+        for child in self.app_list.get_children():
+            self.app_list.remove(child)
+        query = self.search.get_text().lower().strip()
+        shown = 0
+        for cat, app in self.iter_apps():
+            if self.category not in ("all", "installed") \
+                    and cat["id"] != self.category:
+                continue
+            installed = self.app_installed(app)
+            if self.category == "installed" and not installed:
+                continue
+            if query and query not in app["name"].lower() \
+                    and query not in app["desc"].lower() \
+                    and query not in (app.get("apt") or ""):
+                continue
+            self.app_list.add(self.make_row(cat["name"], app, installed))
+            shown += 1
+        self.app_list.show_all()
+        title = {"all": "All Apps", "installed": "Installed Apps"}.get(
+            self.category,
+            next((c["name"] for c in self.catalog["categories"]
+                  if c["id"] == self.category), "Apps"))
+        self.headline.set_markup(
+            f'<span size="large" weight="bold">{title}</span> '
+            f'<span size="small">({shown})</span>')
+        if query and self.repo_toggle.get_active() and shown == 0:
+            self.repo_search(query)
+
+    def make_row(self, catname, app, installed):
+        row = Gtk.ListBoxRow()
+        box = Gtk.Box(spacing=12)
+        box.set_border_width(8)
+        theme = Gtk.IconTheme.get_default()
+        icon_name = app.get("icon", "application-x-executable")
+        if not theme.has_icon(icon_name):
+            icon_name = "application-x-executable"
+        img = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.DIALOG)
+        img.set_pixel_size(44)
+        box.pack_start(img, False, False, 0)
+
+        text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        name = Gtk.Label()
+        source = "APT" if app.get("apt") else \
+            "Flatpak" if app.get("flatpak") else "Info"
+        name.set_markup(
+            f"<b>{GLib.markup_escape_text(app['name'])}</b>  "
+            f'<span size="small" background="#2f7fe0" foreground="#ffffff">'
+            f" {source} </span>")
+        name.set_xalign(0)
+        desc = Gtk.Label(label=app["desc"])
+        desc.set_xalign(0)
+        desc.set_line_wrap(True)
+        desc.set_line_wrap_mode(Pango.WrapMode.WORD)
+        desc.get_style_context().add_class("dim-label")
+        meta = Gtk.Label(label=catname + (
+            f" · {app['apt']}" if app.get("apt") else
+            f" · {app['flatpak']}" if app.get("flatpak") else ""))
+        meta.set_xalign(0)
+        meta.get_style_context().add_class("dim-label")
+        text.pack_start(name, False, False, 0)
+        text.pack_start(desc, False, False, 0)
+        text.pack_start(meta, False, False, 0)
+        box.pack_start(text, True, True, 0)
+
+        if app.get("note") and not (app.get("apt") or app.get("flatpak")):
+            btn = Gtk.Button(label="About")
+            btn.connect("clicked", self.show_note, app)
+        elif installed:
+            btn = Gtk.Button(label="Remove")
+            btn.get_style_context().add_class("destructive-action")
+            btn.connect("clicked", self.remove_app, app)
+        else:
+            btn = Gtk.Button(label="Install")
+            btn.get_style_context().add_class("suggested-action")
+            btn.connect("clicked", self.install_app, app)
+        btn.set_valign(Gtk.Align.CENTER)
+        box.pack_start(btn, False, False, 0)
+        row.add(box)
+        return row
+
+    def show_note(self, _b, app):
+        dlg = Gtk.MessageDialog(transient_for=self, modal=True,
+                                message_type=Gtk.MessageType.INFO,
+                                buttons=Gtk.ButtonsType.CLOSE,
+                                text=app["name"])
+        dlg.format_secondary_text(app["note"])
+        dlg.run()
+        dlg.destroy()
+
+    def repo_search(self, query):
+        self.headline.set_markup(
+            '<span size="large" weight="bold">Searching Debian '
+            'repositories…</span>')
+        self.run_task(["apt-cache", "search", "--names-only", query],
+                      f"Searching for “{query}”…",
+                      on_done=lambda out: self.show_repo_results(query, out),
+                      quiet=True)
+
+    def show_repo_results(self, query, out):
+        lines = [l for l in out.splitlines() if " - " in l][:50]
+        for child in self.app_list.get_children():
+            self.app_list.remove(child)
+        for line in lines:
+            name, desc = line.split(" - ", 1)
+            app = {"id": name, "name": name, "desc": desc, "apt": name,
+                   "flatpak": None, "icon": "system-software-install"}
+            self.app_list.add(self.make_row("Debian repository", app,
+                                            dpkg_installed(name)))
+        self.app_list.show_all()
+        self.headline.set_markup(
+            f'<span size="large" weight="bold">Repository results for '
+            f'“{GLib.markup_escape_text(query)}”</span> '
+            f'<span size="small">({len(lines)} shown)</span>')
+        if not lines:
+            self.task_label.set_text("No packages matched. Tip: package "
+                                     "names are lowercase, e.g. “image editor”.")
+
+    # ------------------------------------------------------------------ tasks
+    def log(self, text):
+        end = self.log_buffer.get_end_iter()
+        self.log_buffer.insert(end, text)
+
+    def install_app(self, _b, app):
+        if app.get("apt"):
+            if not shutil.which("pkexec"):
+                self.task_label.set_text("pkexec not found — use Celestia "
+                                         "Shell: aura install " + app["apt"])
+                self.expander.set_expanded(True)
+                return
+            cmd = ["pkexec", "apt-get", "install", "-y", app["apt"]]
+            label = f"Installing {app['name']}… (enter your password)"
+        elif app.get("flatpak"):
+            if not shutil.which("flatpak"):
+                self.task_label.set_text(
+                    "Flatpak isn't installed yet — find “flatpak” via a "
+                    "repository search, install it, then relaunch.")
+                self.expander.set_expanded(True)
+                return
+            cmd = ["flatpak", "install", "-y", "flathub", app["flatpak"]]
+            label = f"Installing {app['name']} from Flathub…"
+        else:
+            return
+        self.run_task(cmd, label, refresh=True)
+
+    def remove_app(self, _b, app):
+        dlg = Gtk.MessageDialog(transient_for=self, modal=True,
+                                message_type=Gtk.MessageType.QUESTION,
+                                buttons=Gtk.ButtonsType.OK_CANCEL,
+                                text=f"Remove {app['name']}?")
+        dlg.format_secondary_text("The application will be uninstalled. "
+                                  "Your documents are not affected.")
+        if dlg.run() != Gtk.ResponseType.OK:
+            dlg.destroy()
+            return
+        dlg.destroy()
+        if app.get("apt"):
+            cmd = ["pkexec", "apt-get", "remove", "-y", app["apt"]]
+        else:
+            cmd = ["flatpak", "uninstall", "-y", app["flatpak"]]
+        self.run_task(cmd, f"Removing {app['name']}…", refresh=True)
+
+    def check_updates(self, *_):
+        def after_refresh(out):
+            ups = []
+            try:
+                res = subprocess.check_output(["apt", "list", "--upgradable"],
+                                              text=True,
+                                              stderr=subprocess.DEVNULL,
+                                              timeout=60)
+                ups = [l.split("/")[0] for l in res.splitlines() if "/" in l]
+            except Exception:
+                pass
+            if ups:
+                self.task_label.set_text(
+                    f"{len(ups)} updates available — see the log. "
+                    "Click “Upgrade All” to install them.")
+                self.log("\nUpdates available:\n" +
+                         "\n".join("  • " + u for u in ups) + "\n")
+                self.upgrade_btn.set_sensitive(True)
+            else:
+                self.task_label.set_text("AURA OS is up to date. 🎉")
+        self.run_task(["pkexec", "apt-get", "update"],
+                      "Refreshing package lists…", on_done=after_refresh)
+
+    def upgrade_all(self, *_):
+        self.run_task(["pkexec", "apt-get", "upgrade", "-y"],
+                      "Installing all updates…", refresh=True)
+
+    def run_task(self, cmd, label, refresh=False, on_done=None, quiet=False):
+        if self.proc is not None:
+            self.task_label.set_text("Please wait — a task is already running.")
+            self.expander.set_expanded(True)
+            return
+        self.expander.set_expanded(not quiet)
+        self.spinner.start()
+        self.task_label.set_text(label)
+        if not quiet:
+            self.log(f"\n$ {' '.join(cmd)}\n")
+        try:
+            self.proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                bufsize=0)
+        except (OSError, ValueError) as exc:
+            self.proc = None
+            self.spinner.stop()
+            self.task_label.set_text(f"Could not start: {exc}")
+            return
+        self._task_out = []
+        self._task_quiet = quiet
+        GLib.io_add_watch(self.proc.stdout, GLib.IO_IN | GLib.IO_HUP,
+                          self._on_output, (label, refresh, on_done))
+
+    def _on_output(self, source, condition, ctx):
+        label, refresh, on_done = ctx
+        if condition & GLib.IO_IN:
+            try:
+                raw = os.read(source.fileno(), 4096)
+            except (OSError, BlockingIOError):
+                raw = b""
+            if raw:
+                chunk = raw.decode("utf-8", errors="replace")
+                self._task_out.append(chunk)
+                if not self._task_quiet:
+                    self.log(chunk)
+                return True
+        rc = self.proc.poll()
+        if rc is None:
+            return True
+        self.proc = None
+        self.spinner.stop()
+        self.flatpak_cache = None
+        if rc == 0:
+            self.task_label.set_text("Done ✓  " + label)
+        else:
+            self.task_label.set_text(
+                f"Task finished with errors (code {rc}). See the log — "
+                "or run the same command in Celestia Shell for details.")
+        if on_done:
+            on_done("".join(self._task_out))
+        if refresh:
+            self.populate()
+        return False
+
+
+def main():
+    win = AppCenter()
+    # Add the Upgrade All button next to updates in the headerbar.
+    win.upgrade_btn = Gtk.Button(label="Upgrade All")
+    win.upgrade_btn.get_style_context().add_class("suggested-action")
+    win.upgrade_btn.set_sensitive(False)
+    win.upgrade_btn.connect("clicked", win.upgrade_all)
+    win.get_titlebar().pack_end(win.upgrade_btn)
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

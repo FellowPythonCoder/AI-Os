@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS monochrome mountain glyph — recolor via currentColor contexts / single-color use. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <g fill="#ffffff">
+    <circle cx="186" cy="62" r="22"/>
+    <path d="M8 222 L100 116 L152 172 L202 130 L248 222 Z"/>
+  </g>
+</svg>
