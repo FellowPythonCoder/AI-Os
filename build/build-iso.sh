@@ -60,8 +60,9 @@ chmod +x "$LIVE_DIR/config/hooks/live/0500-aura.hook.chroot"
 
 cd "$LIVE_DIR"
 
-# Clean any previous partial config but keep our config/ content
-lb clean --purge >/dev/null 2>&1 || true
+# Clean previous build stages but KEEP the downloaded-package cache,
+# so re-running after a failure resumes in minutes, not from zero.
+lb clean >/dev/null 2>&1 || true
 
 echo "▸ Configuring (Debian bookworm, arm64, grub-efi)…"
 lb config noauto \
