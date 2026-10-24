@@ -27,7 +27,7 @@ jobs:
       - name: shellcheck
         run: |
           shellcheck -S warning installer/install-aura.sh rootfs/usr/share/aura/finalize.sh \
-            build/build-iso.sh build/build-image.sh rootfs/usr/share/aura/render-boot-assets.sh \
+            build/build-iso.sh build/build-image.sh build/build-on-mac.sh rootfs/usr/share/aura/render-boot-assets.sh \
             rootfs/usr/bin/celestia-tutorial tests/run-tests.sh
 
       - name: Validate desktop files

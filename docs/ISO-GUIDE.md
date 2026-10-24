@@ -1,7 +1,15 @@
 # Build the AURA OS ISO and run it in UTM — every command, step by step
 
-The ISO must be built on **ARM64 Linux**. You can't build it in macOS
-Terminal, so this guide uses a small Debian "builder" VM inside UTM itself.
+The ISO must be built on **ARM64 Linux** — `apt`/`live-build` don't exist
+on macOS, so don't paste the Linux commands into Mac Terminal. Two ways:
+
+* **Easiest (all from Mac Terminal):** one command — `./build/build-on-mac.sh`
+  creates an ARM64 Debian VM with Lima, builds inside it, and puts the ISO
+  in `~/Downloads`. Skip to **Phase 4** when it's done. (First run installs
+  Homebrew's `lima` package if needed; if you have no Homebrew, the script
+  prints the one-line installer.)
+* **Manual builder VM in UTM:** Phases 0–3 below.
+
 Total time: ~1–2 hours (mostly downloads). A no-build alternative using
 GitHub Actions is at the end.
 
