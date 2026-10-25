@@ -26,6 +26,7 @@ jobs:
 
       - name: Build ISO inside ARM64 Debian 12 (bookworm)
         run: |
+          set +e
           docker run --rm --privileged \
             -v "$PWD:/work" -w /work \
             debian:bookworm bash -c '
@@ -38,6 +39,12 @@ jobs:
                 ca-certificates cpio fdisk
               ./build/build-iso.sh
             '
+          RC=$?
+          if [ -f build/out/build-iso.log ]; then
+            MSG=$(tail -n 30 build/out/build-iso.log | tr '\n\r' '  ' | cut -c1-900)
+            echo "::error title=build-iso-tail::$MSG"
+          fi
+          exit $RC
 
       - name: Show artifacts
         if: always()
