@@ -6,5 +6,5 @@ Comment=Install, update and remove applications
 Exec=aura-appcenter
 Icon=aura-appcenter
 Terminal=false
-Categories=System;SoftwareManagement;Settings;
+Categories=System;PackageManager;Settings;
 StartupNotify=true

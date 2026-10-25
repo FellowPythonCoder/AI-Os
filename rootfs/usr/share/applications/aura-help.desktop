@@ -6,5 +6,5 @@ Comment=Guides, shortcuts and troubleshooting
 Exec=aura-help
 Icon=aura-help
 Terminal=false
-Categories=Documentation;System;
+Categories=System;Utility;Documentation;
 StartupNotify=true
