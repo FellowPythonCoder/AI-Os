@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-AURA Monitor — live CPU / memory / network graphs and a process list,
-read straight from /proc. No daemons, no fake data.
+AURA Monitor — live CPU / guest memory / disk I/O / network / temperature
+graphs, running processes table, and reduced-effects mode toggle.
+Reads straight from /proc and /sys. No daemons, no fake data.
 """
+import argparse
+import glob
 import os
+import subprocess
 import sys
 import time
 from collections import deque
-
-import gi
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib  # noqa: E402
-import cairo  # noqa: E402
 
 HISTORY = 60
 
@@ -56,17 +55,60 @@ def read_net():
     return rx, tx
 
 
-def read_processes(limit=12):
+def read_disk_io():
+    """Return (read_bytes, write_bytes) across block devices from /proc/diskstats."""
+    rb = wb = 0
+    try:
+        with open("/proc/diskstats", encoding="utf-8") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) < 10:
+                    continue
+                dev = parts[2]
+                if dev.startswith(("loop", "ram", "sr")):
+                    continue
+                # Only count whole-disk or primary virtio/nvme/sd devices
+                if any(dev.startswith(p) for p in ("vd", "sd", "nvme", "mmcblk", "hd")) and not dev[-1].isdigit():
+                    rb += int(parts[5]) * 512
+                    wb += int(parts[9]) * 512
+    except (OSError, ValueError, IndexError):
+        pass
+    return rb, wb
+
+
+def read_temperatures():
+    """Read CPU/system temperatures in Celsius where hardware sensors exist."""
+    readings = []
+    for tpath in sorted(glob.glob("/sys/class/thermal/thermal_zone*/temp")):
+        try:
+            raw = int(open(tpath, encoding="utf-8").read().strip())
+            if raw > 0:
+                readings.append(raw / 1000.0 if raw > 200 else float(raw))
+        except Exception:
+            continue
+    if not readings:
+        for hpath in sorted(glob.glob("/sys/class/hwmon/hwmon*/temp*_input")):
+            try:
+                raw = int(open(hpath, encoding="utf-8").read().strip())
+                if raw > 0:
+                    readings.append(raw / 1000.0 if raw > 200 else float(raw))
+            except Exception:
+                continue
+    if readings:
+        return f"{max(readings):.1f} °C ({len(readings)} sensor{'s' if len(readings) != 1 else ''})"
+    return "VM / No hardware thermal sensor exposed"
+
+
+def read_processes(limit=15):
     procs = []
     for pid in os.listdir("/proc"):
         if not pid.isdigit():
             continue
         try:
-            with open(f"/proc/{pid}/stat", encoding="utf-8",
-                      errors="replace") as fh:
+            with open(f"/proc/{pid}/stat", encoding="utf-8", errors="replace") as fh:
                 stat = fh.read()
-            comm = stat[stat.index("(") + 1:stat.rindex(")")]
-            rest = stat[stat.rindex(")") + 2:].split()
+            comm = stat[stat.index("(") + 1 : stat.rindex(")")]
+            rest = stat[stat.rindex(")") + 2 :].split()
             utime, stime = int(rest[11]), int(rest[12])
             rss = int(rest[21]) * os.sysconf("SC_PAGE_SIZE") // 1024  # KiB
             procs.append((int(pid), comm, utime + stime, rss))
@@ -75,186 +117,253 @@ def read_processes(limit=12):
     return procs
 
 
-class Graph(Gtk.DrawingArea):
-    def __init__(self, color, title):
-        super().__init__()
-        self.set_size_request(-1, 86)
-        self.color = color
-        self.title = title
-        self.data = deque([0.0] * HISTORY, maxlen=HISTORY)
-        self.max_value = 100.0
-        self.label = ""
-        self.connect("draw", self.on_draw)
-
-    def push(self, value, label, max_value=None):
-        self.data.append(value)
-        self.label = label
-        if max_value:
-            self.max_value = max_value
-        self.queue_draw()
-
-    def on_draw(self, _w, cr):
-        w, h = self.get_allocated_width(), self.get_allocated_height()
-        sc = self.get_style_context()
-        _ok, bg = sc.lookup_color("theme_base_color")
-        _ok2, fg = sc.lookup_color("theme_fg_color")
-        cr.set_source_rgba(bg.red, bg.green, bg.blue, 1)
-        cr.rectangle(0, 0, w, h)
-        cr.fill()
-        # gridlines
-        cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.12)
-        cr.set_line_width(1)
-        for i in range(1, 4):
-            y = h * i / 4
-            cr.move_to(0, y)
-            cr.line_to(w, y)
-        cr.stroke()
-        # area + line
-        step = w / (HISTORY - 1)
-        cr.move_to(0, h)
-        for i, v in enumerate(self.data):
-            y = h - 4 - (h - 10) * min(v / self.max_value, 1.0)
-            cr.line_to(i * step, y)
-        cr.line_to(w, h)
-        cr.close_path()
-        cr.set_source_rgba(*self.color, 0.25)
-        cr.fill_preserve()
-        cr.set_source_rgba(*self.color, 1.0)
-        cr.set_line_width(1.8)
-        cr.stroke()
-        # title + current value
-        cr.set_source_rgba(fg.red, fg.green, fg.blue, 0.9)
-        cr.set_font_size(12)
-        cr.move_to(8, 16)
-        cr.show_text(f"{self.title}   {self.label}")
-        return False
+def run_cli_status():
+    t1, i1 = read_cpu()
+    time.sleep(0.15)
+    t2, i2 = read_cpu()
+    dt = t2 - t1
+    cpu_pct = 100.0 * (1.0 - (i2 - i1) / dt) if dt else 0.0
+    mem_t, mem_u, sw_t, sw_u = read_mem()
+    rx, tx = read_net()
+    rb, wb = read_disk_io()
+    st = os.statvfs("/")
+    tot_gb = st.f_blocks * st.f_frsize / 1e9
+    used_gb = tot_gb - (st.f_bavail * st.f_frsize / 1e9)
+    print(f"CPU Usage:      {cpu_pct:.1f}% ({os.cpu_count() or 1} cores)")
+    print(f"Guest RAM:      {mem_u/1048576:.2f} / {mem_t/1048576:.2f} GiB ({100.0*mem_u/max(1,mem_t):.1f}%)")
+    print(f"Disk Space (/): {used_gb:.1f} / {tot_gb:.1f} GB (I/O R:{rb//1048576} MiB W:{wb//1048576} MiB)")
+    print(f"Network Total:  RX {rx//1048576} MiB / TX {tx//1048576} MiB")
+    print(f"Temperatures:   {read_temperatures()}")
+    print(f"Processes:      {len(read_processes())} active processes")
+    return 0
 
 
-class Monitor(Gtk.Window):
-    def __init__(self):
-        super().__init__(title="AURA Monitor")
-        self.set_default_size(760, 620)
-        self.set_border_width(14)
-        try:
-            self.set_icon_name("aura-monitor")
-        except Exception:
-            pass
+def run_gui():
+    import gi
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.add(vbox)
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import GLib, Gtk  # noqa: E402
 
-        head = Gtk.Label()
-        head.set_markup('<span size="large" weight="bold">System Monitor</span>')
-        head.set_xalign(0)
-        vbox.pack_start(head, False, False, 0)
-        self.sub = Gtk.Label(label="Reading live data from this virtual machine…")
-        self.sub.set_xalign(0)
-        self.sub.get_style_context().add_class("dim-label")
-        vbox.pack_start(self.sub, False, False, 0)
+    class Graph(Gtk.DrawingArea):
+        def __init__(self, color, title):
+            super().__init__()
+            self.set_size_request(-1, 82)
+            self.color = color
+            self.title = title
+            self.data = deque([0.0] * HISTORY, maxlen=HISTORY)
+            self.max_value = 100.0
+            self.label = ""
+            self.connect("draw", self.on_draw)
 
-        self.cpu = Graph((0.37, 0.78, 0.95), "CPU")
-        self.mem = Graph((0.35, 0.85, 0.65), "Memory (guest RAM)")
-        self.net = Graph((0.72, 0.62, 0.95), "Network ↓")
-        for g in (self.cpu, self.mem, self.net):
-            vbox.pack_start(g, False, False, 0)
+        def push(self, value, label, max_value=None):
+            self.data.append(value)
+            self.label = label
+            if max_value:
+                self.max_value = max_value
+            self.queue_draw()
 
-        self.disk_label = Gtk.Label()
-        self.disk_label.set_xalign(0)
-        vbox.pack_start(self.disk_label, False, False, 0)
+        def on_draw(self, _w, cr):
+            w, h = self.get_allocated_width(), self.get_allocated_height()
+            cr.set_source_rgba(0.02, 0.05, 0.10, 0.95)
+            cr.rectangle(0, 0, w, h)
+            cr.fill()
+            cr.set_source_rgba(0.33, 0.84, 1.0, 0.14)
+            cr.set_line_width(1)
+            for i in range(1, 4):
+                y = h * i / 4
+                cr.move_to(0, y)
+                cr.line_to(w, y)
+            cr.stroke()
+            step = w / (HISTORY - 1)
+            cr.move_to(0, h)
+            for i, v in enumerate(self.data):
+                y = h - 4 - (h - 10) * min(v / self.max_value, 1.0)
+                cr.line_to(i * step, y)
+            cr.line_to(w, h)
+            cr.close_path()
+            cr.set_source_rgba(*self.color, 0.25)
+            cr.fill_preserve()
+            cr.set_source_rgba(*self.color, 1.0)
+            cr.set_line_width(1.8)
+            cr.stroke()
+            cr.set_source_rgba(0.95, 0.98, 1.0, 0.92)
+            cr.set_font_size(12)
+            cr.move_to(10, 16)
+            cr.show_text(f"{self.title}   {self.label}")
+            return False
 
-        lbl = Gtk.Label()
-        lbl.set_markup("<b>Top processes</b> (by processor time)")
-        lbl.set_xalign(0)
-        vbox.pack_start(lbl, False, False, 0)
+    class Monitor(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="AURA System Monitor")
+            self.set_default_size(820, 680)
+            self.set_border_width(14)
+            try:
+                self.set_icon_name("aura-monitor")
+            except Exception:
+                pass
 
-        self.store = Gtk.ListStore(int, str, str, str)
-        tree = Gtk.TreeView(model=self.store)
-        for i, (t, width) in enumerate((("PID", 70), ("Process", 240),
-                                         ("CPU time", 120), ("Memory", 120))):
-            col = Gtk.TreeViewColumn(t, Gtk.CellRendererText(), text=i)
-            col.set_min_width(width)
-            tree.append_column(col)
-        sw = Gtk.ScrolledWindow()
-        sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        sw.add(tree)
-        vbox.pack_start(sw, True, True, 0)
+            vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            self.add(vbox)
 
-        foot = Gtk.Label()
-        foot.set_markup('<span size="small">Memory shown is the RAM allocated to '
-                        'this VM in UTM. To change it, power the VM off and edit '
-                        'its settings in UTM.</span>')
-        foot.set_line_wrap(True)
-        foot.set_xalign(0)
-        vbox.pack_start(foot, False, False, 0)
+            top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            head = Gtk.Label()
+            head.set_markup('<span size="large" weight="bold">AURA System Monitor</span>')
+            head.set_xalign(0)
+            top_bar.pack_start(head, False, False, 0)
 
-        self.prev_cpu = read_cpu()
-        self.prev_net = read_net()
-        self.prev_time = time.time()
-        self.net_max = 1024.0
-        GLib.timeout_add(1000, self.tick)
-        self.tick()
+            self.perf_btn = Gtk.ToggleButton(label="⚡ Reduced-Effects Mode")
+            self.perf_btn.set_tooltip_text(
+                "Toggle lightweight reduced-effects mode for maximum VM efficiency"
+            )
+            self.perf_btn.connect("toggled", self.on_toggle_reduced_effects)
+            top_bar.pack_end(self.perf_btn, False, False, 0)
+            vbox.pack_start(top_bar, False, False, 0)
 
-    def tick(self):
-        now = time.time()
-        dt = max(now - self.prev_time, 0.001)
-        total, idle = read_cpu()
-        d_total = total - self.prev_cpu[0]
-        d_idle = idle - self.prev_cpu[1]
-        cpu_pct = 100.0 * (1 - d_idle / d_total) if d_total else 0.0
-        self.prev_cpu = (total, idle)
-        cores = os.cpu_count() or 1
-        self.cpu.push(cpu_pct, f"{cpu_pct:4.1f}%  ·  {cores} cores", 100)
+            self.sub = Gtk.Label(
+                label="Live telemetry from /proc and /sys (Guest RAM shown is allocated VM RAM)",
+                xalign=0,
+            )
+            self.sub.get_style_context().add_class("dim-label")
+            vbox.pack_start(self.sub, False, False, 0)
 
-        mem_t, mem_u, sw_t, sw_u = read_mem()
-        mem_pct = 100.0 * mem_u / mem_t if mem_t else 0
-        self.mem.push(mem_pct,
-                      f"{mem_pct:4.1f}%  ·  {mem_u/1048576:.1f} of "
-                      f"{mem_t/1048576:.1f} GiB" +
-                      (f"  ·  swap {sw_u/1048576:.1f}/{sw_t/1048576:.1f} GiB"
-                       if sw_t else ""), 100)
+            self.cpu = Graph((0.09, 0.47, 1.0), "CPU")
+            self.mem = Graph((0.33, 0.84, 1.0), "Memory (Guest RAM)")
+            self.net = Graph((0.22, 0.85, 0.66), "Network ↓↑")
+            for g in (self.cpu, self.mem, self.net):
+                vbox.pack_start(g, False, False, 0)
 
-        rx, tx = read_net()
-        down = (rx - self.prev_net[0]) / dt
-        up = (tx - self.prev_net[1]) / dt
-        self.prev_net = (rx, tx)
-        self.net_max = max(self.net_max * 0.98, down, 1024.0)
-        self.net.push(down, f"{self._fmt_rate(down)}   ↑ {self._fmt_rate(up)}",
-                      self.net_max)
-        self.prev_time = now
+            info_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+            self.disk_label = Gtk.Label(xalign=0)
+            self.temp_label = Gtk.Label(xalign=1)
+            info_row.pack_start(self.disk_label, True, True, 0)
+            info_row.pack_end(self.temp_label, False, False, 0)
+            vbox.pack_start(info_row, False, False, 0)
 
-        try:
-            st = os.statvfs("/")
-            total_gb = st.f_blocks * st.f_frsize / 1e9
-            used_gb = total_gb - st.f_bavail * st.f_frsize / 1e9
-            self.disk_label.set_text(
-                f"Disk: {used_gb:.0f} GB used of {total_gb:.0f} GB "
-                f"({100*used_gb/total_gb:.0f}%)")
-        except OSError:
-            pass
+            lbl = Gtk.Label()
+            lbl.set_markup("<b>Running Processes</b> (sorted by CPU time)")
+            lbl.set_xalign(0)
+            vbox.pack_start(lbl, False, False, 0)
 
-        self.store.clear()
-        for pid, comm, ticks, rss in sorted(
-                read_processes(), key=lambda p: p[2], reverse=True)[:12]:
-            secs = ticks / os.sysconf("SC_CLK_TCK")
-            self.store.append([pid, comm, f"{secs/60:.1f} min"
-                               if secs >= 60 else f"{secs:.0f} s",
-                               f"{rss/1024:.0f} MiB"])
-        return True
+            self.store = Gtk.ListStore(int, str, str, str)
+            tree = Gtk.TreeView(model=self.store)
+            for i, (t, width) in enumerate(
+                (("PID", 75), ("Process", 260), ("CPU Time", 120), ("Resident RAM", 120))
+            ):
+                col = Gtk.TreeViewColumn(t, Gtk.CellRendererText(), text=i)
+                col.set_min_width(width)
+                tree.append_column(col)
+            sw = Gtk.ScrolledWindow()
+            sw.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+            sw.add(tree)
+            vbox.pack_start(sw, True, True, 0)
 
-    @staticmethod
-    def _fmt_rate(bps):
-        for unit in ("B/s", "KiB/s", "MiB/s", "GiB/s"):
-            if abs(bps) < 1024 or unit == "GiB/s":
-                return f"{bps:.0f} {unit}"
-            bps /= 1024
-        return f"{bps:.1f} GiB/s"
+            foot = Gtk.Label()
+            foot.set_markup(
+                '<span size="small">Guest RAM shown is the memory allocated to this VM in UTM. '
+                "To adjust guest RAM or CPU cores, shut down the VM and edit its UTM settings.</span>"
+            )
+            foot.set_line_wrap(True)
+            foot.set_xalign(0)
+            vbox.pack_start(foot, False, False, 0)
 
+            self.prev_cpu = read_cpu()
+            self.prev_net = read_net()
+            self.prev_disk = read_disk_io()
+            self.prev_time = time.time()
+            self.net_max = 1024.0
+            GLib.timeout_add(1000, self.tick)
+            self.tick()
 
-def main():
+        def on_toggle_reduced_effects(self, btn):
+            preset = "performance" if btn.get_active() else "glass"
+            subprocess.Popen(["aura", "glass", preset])
+
+        def tick(self):
+            now = time.time()
+            dt = max(now - self.prev_time, 0.001)
+            total, idle = read_cpu()
+            d_total = total - self.prev_cpu[0]
+            d_idle = idle - self.prev_cpu[1]
+            cpu_pct = 100.0 * (1 - d_idle / d_total) if d_total else 0.0
+            self.prev_cpu = (total, idle)
+            cores = os.cpu_count() or 1
+            self.cpu.push(cpu_pct, f"{cpu_pct:4.1f}%  ·  {cores} cores", 100)
+
+            mem_t, mem_u, sw_t, sw_u = read_mem()
+            mem_pct = 100.0 * mem_u / mem_t if mem_t else 0
+            self.mem.push(
+                mem_pct,
+                f"{mem_pct:4.1f}%  ·  {mem_u/1048576:.1f} of {mem_t/1048576:.1f} GiB"
+                + (f"  ·  swap {sw_u/1048576:.1f}/{sw_t/1048576:.1f} GiB" if sw_t else ""),
+                100,
+            )
+
+            rx, tx = read_net()
+            down = (rx - self.prev_net[0]) / dt
+            up = (tx - self.prev_net[1]) / dt
+            self.prev_net = (rx, tx)
+            self.net_max = max(self.net_max * 0.98, down, 1024.0)
+            self.net.push(
+                down, f"↓ {self._fmt_rate(down)}   ↑ {self._fmt_rate(up)}", self.net_max
+            )
+
+            rb, wb = read_disk_io()
+            r_rate = max(0.0, (rb - self.prev_disk[0]) / dt)
+            w_rate = max(0.0, (wb - self.prev_disk[1]) / dt)
+            self.prev_disk = (rb, wb)
+            self.prev_time = now
+
+            try:
+                st = os.statvfs("/")
+                total_gb = st.f_blocks * st.f_frsize / 1e9
+                used_gb = total_gb - st.f_bavail * st.f_frsize / 1e9
+                self.disk_label.set_text(
+                    f"Disk (/): {used_gb:.1f}/{total_gb:.1f} GB ({100*used_gb/total_gb:.0f}%)  ·  "
+                    f"I/O Read {self._fmt_rate(r_rate)} · Write {self._fmt_rate(w_rate)}"
+                )
+            except OSError:
+                pass
+
+            self.temp_label.set_text(f"🌡 Thermal: {read_temperatures()}")
+
+            self.store.clear()
+            for pid, comm, ticks, rss in sorted(
+                read_processes(), key=lambda p: p[2], reverse=True
+            )[:15]:
+                secs = ticks / os.sysconf("SC_CLK_TCK")
+                self.store.append(
+                    [
+                        pid,
+                        comm,
+                        f"{secs/60:.1f} min" if secs >= 60 else f"{secs:.0f} s",
+                        f"{rss/1024:.1f} MiB",
+                    ]
+                )
+            return True
+
+        @staticmethod
+        def _fmt_rate(bps):
+            for unit in ("B/s", "KiB/s", "MiB/s", "GiB/s"):
+                if abs(bps) < 1024 or unit == "GiB/s":
+                    return f"{bps:.0f} {unit}"
+                bps /= 1024
+            return f"{bps:.1f} GiB/s"
+
     win = Monitor()
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
     Gtk.main()
+    return 0
+
+
+def main():
+    p = argparse.ArgumentParser(description="AURA System Monitor")
+    p.add_argument("--status", action="store_true", help="Print live system telemetry to stdout")
+    args = p.parse_args()
+
+    if args.status or not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return run_cli_status()
+    return run_gui()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+/* AURA OS Cool Geometric & Futuristic Typography — rewritten by `aura font <preset>`. */
+headerbar .title, #whiskermenu-button, #clock-button label, .aura-display-title {
+  font-family: "Orbitron", "Rajdhani", "Exo 2", "Inter", sans-serif;
+  letter-spacing: 0.7px;
+  font-weight: 700;
+}

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Launcher
+Comment=Searchable application launcher with Kali and system categories
+Exec=aura-launcher
+Icon=aura-launcher
+Terminal=false
+Categories=System;Utility;
+StartupNotify=true

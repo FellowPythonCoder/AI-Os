@@ -39,8 +39,8 @@ CONFIG_FILE = os.path.expanduser(
 
 def load_config():
     cfg = {
-        "lock_wallpaper": "aura-lock-peaks.jpg",
-        "wallpaper": "aura-midnight-peaks.jpg",
+        "lock_wallpaper": "aura-dark-peaks.jpg",
+        "wallpaper": "aura-dark-peaks.jpg",
         "lock_clock_24h": True,
         "lock_particles": True,
         "lock_widgets": True,
@@ -305,21 +305,24 @@ def run_gtk_lock_screen(cfg) -> int:
 
     LOCK_CSS = b"""
     window.aura-lock-root {
-      background-color: #071426;
+      background-color: #050D1A;
       color: #F4F9FF;
+      font-family: "Rajdhani", "Inter", sans-serif;
     }
     .aura-lock-clock {
+      font-family: "Orbitron", "Rajdhani", sans-serif;
       font-size: 68pt;
-      font-weight: 300;
+      font-weight: 700;
       color: #F4F9FF;
-      text-shadow: 0 4px 24px rgba(7, 20, 38, 0.85);
+      text-shadow: 0 4px 24px rgba(5, 13, 26, 0.90);
     }
     .aura-lock-date {
+      font-family: "Rajdhani", "Inter", sans-serif;
       font-size: 16pt;
       font-weight: 600;
-      color: #BDEBFF;
-      letter-spacing: 1.2px;
-      text-shadow: 0 2px 12px rgba(7, 20, 38, 0.85);
+      color: #55D6FF;
+      letter-spacing: 1.4px;
+      text-shadow: 0 2px 12px rgba(5, 13, 26, 0.85);
     }
     .aura-lock-card {
       background-color: rgba(11, 35, 69, 0.76);
@@ -475,6 +478,11 @@ def run_gtk_lock_screen(cfg) -> int:
             center_wrap.pack_start(self.card, True, False, 0)
             vbox.pack_start(center_wrap, False, False, 0)
 
+            # Custom geometric Aura mountain logo above user profile
+            crest_logo = Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.DIALOG)
+            crest_logo.set_halign(Gtk.Align.CENTER)
+            self.card.pack_start(crest_logo, False, False, 0)
+
             # Circular glowing user avatar
             avatar = Gtk.DrawingArea()
             avatar.set_size_request(88, 88)
@@ -558,6 +566,39 @@ def run_gtk_lock_screen(cfg) -> int:
                     ),
                 )
                 bottom_bar.pack_start(sw_btn, False, False, 0)
+
+            sleep_btn = Gtk.Button(label="☾ Sleep")
+            sleep_btn.connect(
+                "clicked",
+                lambda *_: subprocess.Popen(
+                    ["systemctl", "suspend"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ),
+            )
+            bottom_bar.pack_start(sleep_btn, False, False, 0)
+
+            restart_btn = Gtk.Button(label="↻ Restart")
+            restart_btn.connect(
+                "clicked",
+                lambda *_: subprocess.Popen(
+                    ["systemctl", "reboot"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ),
+            )
+            bottom_bar.pack_start(restart_btn, False, False, 0)
+
+            power_btn = Gtk.Button(label="⏻ Shutdown")
+            power_btn.connect(
+                "clicked",
+                lambda *_: subprocess.Popen(
+                    ["systemctl", "poweroff"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ),
+            )
+            bottom_bar.pack_start(power_btn, False, False, 0)
 
             vbox.pack_start(bottom_bar, False, False, 0)
 

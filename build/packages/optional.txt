@@ -1,4 +1,19 @@
 # Installed only if available — failures here never abort an install.
+fonts-orbitron
+fonts-rajdhani
+fonts-exo2
+wireshark
+tshark
+nikto
+wfuzz
+hashcat
+medusa
+ettercap-text-only
+wifite
+reaver
+autopsy
+podman
+ffmpeg
 xfce4-sensors-plugin
 mugshot
 menulibre

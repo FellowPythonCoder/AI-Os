@@ -13,7 +13,7 @@ conky.config = {
     draw_outline = false,
     draw_shades = false,
     extra_newline = false,
-    font = 'Inter:size=10',
+    font = 'Rajdhani:size=10',
     gap_x = 26,
     gap_y = 52,
     minimum_height = 5,
@@ -30,8 +30,8 @@ conky.config = {
     own_window_type = 'desktop',
     own_window_transparent = false,
     own_window_argb_visual = true,
-    own_window_argb_value = 165,
-    own_window_colour = '0B2345',
+    own_window_argb_value = 175,
+    own_window_colour = '050D1A',
     own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
     show_graph_range = false,
     show_graph_scale = false,
@@ -44,7 +44,7 @@ conky.config = {
     color2 = 'BDEBFF',
 }
 conky.text = [[
-${font Inter:size=26:bold}${time %H:%M}${font}
+${font Orbitron:size=24:bold}${time %H:%M}${font}
 ${color2}${time %A, %d %B}${color}
 ${voffset 6}${color1}CPU${color}  ${cpu cpu0}%  ${cpubar cpu0 6,120}
 ${color1}RAM${color}  ${memperc}%  ${membar 6,120}

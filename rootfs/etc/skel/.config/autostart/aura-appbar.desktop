@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AURA Cool App Bar
+Comment=Floating dark-blue glass quick-launch bar and search bar
+Exec=aura-appbar
+Icon=aura-appbar
+Terminal=false
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

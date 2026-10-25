@@ -1,7 +1,7 @@
 /* AURA Liquid Glass surface parameters — rewritten by `aura glass` / AURA Settings. */
-@define-color glass_panel_bg rgba(7, 20, 38, 0.78);
-@define-color glass_popover_bg rgba(11, 35, 69, 0.88);
-@define-color glass_card_bg rgba(11, 35, 69, 0.68);
-@define-color glass_sidebar_bg rgba(7, 20, 38, 0.90);
+@define-color glass_panel_bg rgba(5, 13, 26, 0.84);
+@define-color glass_popover_bg rgba(7, 20, 38, 0.90);
+@define-color glass_card_bg rgba(9, 25, 48, 0.74);
+@define-color glass_sidebar_bg rgba(5, 13, 26, 0.92);
 @define-color glass_edge rgba(85, 214, 255, 0.32);
-@define-color glass_highlight rgba(244, 249, 255, 0.18);
+@define-color glass_highlight rgba(244, 249, 255, 0.16);

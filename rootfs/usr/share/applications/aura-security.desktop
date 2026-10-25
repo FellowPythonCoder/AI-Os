@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Security Center
+Comment=Kali Linux and Debian security toolkit manager and launcher
+Exec=aura-security
+Icon=aura-security
+Terminal=false
+Categories=System;Security;Network;
+StartupNotify=true

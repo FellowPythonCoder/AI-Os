@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+"""
+Aura Cool App Bar (aura-appbar)
+Floating dark-blue glassmorphism quick-launch App Bar + interactive
+"Search anything..." desktop search bar inspired by the Aura OS Blue Mountain
+interface design.
+"""
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+CONFIG_PATH = os.path.expanduser("~/.config/aura/appbar.json")
+
+DEFAULT_ITEMS = [
+    {
+        "id": "launcher",
+        "name": "Aura Application Launcher",
+        "icon": "aura-launcher",
+        "cmd": "aura-launcher",
+        "badge": "APPS",
+    },
+    {
+        "id": "terminal",
+        "name": "Celestia Terminal (Zsh)",
+        "icon": "celestia-shell",
+        "cmd": "xfce4-terminal",
+        "badge": "ZSH",
+    },
+    {
+        "id": "files",
+        "name": "AURA Finder (Files)",
+        "icon": "aura-files",
+        "cmd": "thunar",
+        "badge": "",
+    },
+    {
+        "id": "browser",
+        "name": "AURA Web Browser",
+        "icon": "aura-browser",
+        "cmd": "firefox-esr",
+        "badge": "",
+    },
+    {
+        "id": "security",
+        "name": "Aura Security Center (Kali Suite)",
+        "icon": "aura-security",
+        "cmd": "aura-security",
+        "badge": "KALI",
+    },
+    {
+        "id": "nmap",
+        "name": "Nmap Network Scanner",
+        "icon": "aura-nmap",
+        "cmd": "aura-security --launch nmap",
+        "badge": "",
+    },
+    {
+        "id": "wireshark",
+        "name": "Wireshark Packet Analyzer",
+        "icon": "aura-wireshark",
+        "cmd": "aura-security --launch wireshark",
+        "badge": "",
+    },
+    {
+        "id": "monitor",
+        "name": "AURA System Monitor",
+        "icon": "aura-monitor",
+        "cmd": "aura-monitor",
+        "badge": "",
+    },
+    {
+        "id": "settings",
+        "name": "AURA Settings",
+        "icon": "aura-settings",
+        "cmd": "aura-settings",
+        "badge": "",
+    },
+    {
+        "id": "quicksettings",
+        "name": "Quick Settings Control Panel",
+        "icon": "aura-quicksettings",
+        "cmd": "aura-quicksettings",
+        "badge": "",
+    },
+]
+
+
+def load_config():
+    cfg = {"position": "left", "show_search_pill": True, "items": DEFAULT_ITEMS}
+    try:
+        if os.path.isfile(CONFIG_PATH):
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    cfg.update(data)
+    except Exception:
+        pass
+    return cfg
+
+
+def save_config(cfg):
+    try:
+        os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception:
+        pass
+
+
+def is_process_running(cmd_str):
+    prog = cmd_str.split()[0]
+    try:
+        r = subprocess.run(
+            ["pgrep", "-f", prog],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def execute_search_query(query):
+    q = query.strip()
+    if not q:
+        subprocess.Popen(["aura-launcher"], start_new_session=True)
+        return
+    # Check if it matches a Kali tool ID or binary
+    try:
+        from subprocess import Popen
+        if q.startswith("!"):
+            # Run shell command in Celestia Terminal
+            sh_cmd = q[1:].strip()
+            Popen(
+                ["xfce4-terminal", "-x", "bash", "-c", f"{sh_cmd}; exec ${{SHELL:-/bin/zsh}}"],
+                start_new_session=True,
+            )
+            return
+        # Check if executable exists directly
+        first_tok = q.split()[0]
+        if shutil.which(first_tok):
+            Popen(q, shell=True, start_new_session=True)
+            return
+    except Exception:
+        pass
+    subprocess.Popen(["aura-launcher"], start_new_session=True)
+
+
+CSS = b"""
+window {
+    background-color: transparent;
+    color: #ECF4FF;
+    font-family: "Rajdhani", "Orbitron", "Inter", sans-serif;
+}
+.appbar-pill {
+    background-image: linear-gradient(180deg, rgba(6, 16, 32, 0.90), rgba(4, 11, 22, 0.94));
+    border: 1px solid rgba(85, 214, 255, 0.30);
+    border-radius: 22px;
+    padding: 10px 7px;
+}
+.appbar-brand-btn {
+    background-image: linear-gradient(135deg, rgba(22, 119, 255, 0.32), rgba(85, 214, 255, 0.16));
+    border: 1px solid rgba(85, 214, 255, 0.50);
+    border-radius: 14px;
+    padding: 7px;
+}
+.appbar-btn {
+    background-color: rgba(11, 28, 52, 0.65);
+    border: 1px solid rgba(85, 214, 255, 0.14);
+    border-radius: 13px;
+    padding: 6px;
+}
+.appbar-btn:hover {
+    background-color: rgba(22, 119, 255, 0.34);
+    border-color: rgba(85, 214, 255, 0.68);
+}
+.appbar-btn-active {
+    background-color: rgba(22, 119, 255, 0.25);
+    border: 1px solid rgba(85, 214, 255, 0.52);
+}
+.appbar-sep {
+    background-color: rgba(85, 214, 255, 0.20);
+    min-height: 1px;
+    min-width: 28px;
+    margin: 4px 4px;
+}
+.search-pill-box {
+    background-image: linear-gradient(135deg, rgba(8, 21, 40, 0.88), rgba(5, 13, 26, 0.92));
+    border: 1px solid rgba(85, 214, 255, 0.34);
+    border-radius: 999px;
+    padding: 6px 12px;
+}
+.search-pill-entry {
+    background: transparent;
+    border: none;
+    color: #ECF4FF;
+    font-size: 14px;
+}
+.search-go-btn {
+    background-image: linear-gradient(135deg, #1677FF, #55D6FF);
+    color: #04101F;
+    border-radius: 999px;
+    font-weight: 800;
+    padding: 4px 11px;
+}
+"""
+
+
+def run_gui(cfg):
+    import gi
+
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gdk, GLib, Gtk
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(CSS)
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
+
+    class CoolAppBarWindow(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="AURA App Bar")
+            self.set_decorated(False)
+            self.set_keep_above(True)
+            self.set_skip_taskbar_hint(True)
+            self.set_skip_pager_hint(True)
+            self.set_type_hint(Gdk.WindowTypeHint.DOCK)
+            self.set_app_paintable(True)
+
+            screen = self.get_screen()
+            visual = screen.get_rgba_visual()
+            if visual and screen.is_composited():
+                self.set_visual(visual)
+
+            horiz = cfg.get("position", "left") in ("top", "bottom")
+            orientation = Gtk.Orientation.HORIZONTAL if horiz else Gtk.Orientation.VERTICAL
+
+            pill = Gtk.Box(orientation=orientation, spacing=7)
+            pill.get_style_context().add_class("appbar-pill")
+            self.add(pill)
+
+            # Top Aura geometric mountain button
+            brand_btn = Gtk.Button()
+            brand_btn.get_style_context().add_class("appbar-brand-btn")
+            brand_btn.set_tooltip_text("AURA OS — Open Application Launcher & Search")
+            brand_btn.add(Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.LARGE_TOOLBAR))
+            brand_btn.connect("clicked", lambda _b: self.spawn("aura-launcher"))
+            pill.pack_start(brand_btn, False, False, 0)
+
+            # Search bar popover trigger button
+            search_btn = Gtk.Button(label="⌕")
+            search_btn.get_style_context().add_class("appbar-btn")
+            search_btn.set_tooltip_text("Search anything... (Apps, Kali Tools, Commands)")
+            search_btn.connect("clicked", self.on_open_search_popover)
+            pill.pack_start(search_btn, False, False, 0)
+
+            sep = Gtk.Box()
+            sep.get_style_context().add_class("appbar-sep")
+            pill.pack_start(sep, False, False, 0)
+
+            self.item_buttons = []
+            for item in cfg.get("items", DEFAULT_ITEMS):
+                btn = Gtk.Button()
+                btn.get_style_context().add_class("appbar-btn")
+                btn.set_tooltip_text(item["name"])
+                img = Gtk.Image.new_from_icon_name(item["icon"], Gtk.IconSize.LARGE_TOOLBAR)
+                btn.add(img)
+                btn.connect("clicked", lambda _b, c=item["cmd"]: self.spawn(c))
+                pill.pack_start(btn, False, False, 0)
+                self.item_buttons.append((btn, item["cmd"]))
+
+            self.connect("realize", self.position_bar)
+            GLib.timeout_add_seconds(4, self.refresh_running_indicators)
+
+        def position_bar(self, *_args):
+            display = Gdk.Display.get_default()
+            monitor = display.get_primary_monitor() or display.get_monitor(0)
+            geom = monitor.get_geometry()
+            pos = cfg.get("position", "left")
+            if pos == "left":
+                self.move(geom.x + 12, geom.y + max(60, (geom.height - 560) // 2))
+            elif pos == "right":
+                self.move(geom.x + geom.width - 74, geom.y + max(60, (geom.height - 560) // 2))
+            elif pos == "top":
+                self.move(geom.x + max(80, (geom.width - 620) // 2), geom.y + 38)
+            else:
+                self.move(geom.x + max(80, (geom.width - 620) // 2), geom.y + geom.height - 86)
+
+        def refresh_running_indicators(self):
+            for btn, cmd in self.item_buttons:
+                ctx = btn.get_style_context()
+                if is_process_running(cmd):
+                    ctx.add_class("appbar-btn-active")
+                else:
+                    ctx.remove_class("appbar-btn-active")
+            return True
+
+        def on_open_search_popover(self, anchor_btn):
+            pop = Gtk.Popover.new(anchor_btn)
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            box.get_style_context().add_class("search-pill-box")
+            entry = Gtk.Entry()
+            entry.set_placeholder_text("Search anything... (or !cmd)")
+            entry.set_width_chars(28)
+            entry.get_style_context().add_class("search-pill-entry")
+            go_btn = Gtk.Button(label="→")
+            go_btn.get_style_context().add_class("search-go-btn")
+
+            def trigger(*_a):
+                q = entry.get_text()
+                pop.popdown()
+                execute_search_query(q)
+
+            entry.connect("activate", trigger)
+            go_btn.connect("clicked", trigger)
+            box.pack_start(entry, True, True, 0)
+            box.pack_start(go_btn, False, False, 0)
+            pop.add(box)
+            pop.show_all()
+            entry.grab_focus()
+
+        def spawn(self, cmd):
+            try:
+                subprocess.Popen(cmd, shell=True, start_new_session=True)
+            except Exception:
+                pass
+
+    win = CoolAppBarWindow()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description="AURA Cool App Bar")
+    parser.add_argument("--status", action="store_true", help="Show App Bar configuration and items")
+    parser.add_argument(
+        "--position",
+        choices=["left", "right", "top", "bottom"],
+        help="Set App Bar screen edge position",
+    )
+    args = parser.parse_args()
+
+    cfg = load_config()
+    if args.position:
+        cfg["position"] = args.position
+        save_config(cfg)
+        print(f"AURA App Bar position set to: {args.position}")
+        return 0
+
+    if args.status or not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        print(f"AURA Cool App Bar — Position: {cfg.get('position', 'left')}")
+        for item in cfg.get("items", DEFAULT_ITEMS):
+            badge = f"[{item['badge']}]" if item.get("badge") else "      "
+            print(f"  {badge:7} {item['id']:14} -> {item['name']} ({item['cmd']})")
+        return 0
+
+    return run_gui(cfg)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

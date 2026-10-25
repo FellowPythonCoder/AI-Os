@@ -1,0 +1,792 @@
+#!/usr/bin/env python3
+"""
+Aura Security Center (aura-security)
+Complete Kali Linux & Debian Security Toolkit Manager and Launcher for AURA OS.
+
+Supports both GTK3 graphical interface and CLI actions (--list, --status,
+--install, --remove, --update, --launch, --enable-kali-repo, --wireless-check).
+"""
+import argparse
+import glob
+import json
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import threading
+
+CATALOG_PATHS = [
+    "/usr/share/aura/kali-tools.json",
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "share", "aura", "kali-tools.json")
+    ),
+]
+FAV_PATH = os.path.expanduser("~/.config/aura/security-favorites.json")
+KALI_LIST_PATH = "/etc/apt/sources.list.d/kali-rolling.list"
+KALI_PREF_PATH = "/etc/apt/preferences.d/kali-pinning"
+
+
+def load_catalog():
+    for path in CATALOG_PATHS:
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    return {"version": "1.0", "categories": []}
+
+
+def load_favorites():
+    try:
+        if os.path.isfile(FAV_PATH):
+            with open(FAV_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return set(data)
+    except Exception:
+        pass
+    return {"nmap", "wireshark", "sqlmap", "john", "hydra", "aircrack-ng", "gobuster"}
+
+
+def save_favorites(favs):
+    try:
+        os.makedirs(os.path.dirname(FAV_PATH), exist_ok=True)
+        with open(FAV_PATH, "w", encoding="utf-8") as f:
+            json.dump(sorted(list(favs)), f, indent=2)
+    except Exception:
+        pass
+
+
+def is_kali_repo_enabled():
+    return os.path.isfile(KALI_LIST_PATH)
+
+
+def detect_wireless_hardware():
+    """Check whether raw 802.11 wireless interfaces exist in this environment."""
+    wireless_Paths = glob.glob("/sys/class/net/*/wireless") + glob.glob("/sys/class/ieee80211/*")
+    ifaces = []
+    for p in glob.glob("/sys/class/net/*/wireless"):
+        parts = p.split("/")
+        if len(parts) >= 5:
+            ifaces.append(parts[4])
+    is_vm = False
+    try:
+        r = subprocess.run(
+            ["systemd-detect-virt"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        )
+        if r.returncode == 0 and r.stdout.strip() not in ("", "none"):
+            is_vm = True
+    except Exception:
+        if os.path.isfile("/sys/class/dmi/id/product_name"):
+            try:
+                prod = open("/sys/class/dmi/id/product_name").read().lower()
+                if any(k in prod for k in ("qemu", "virtual", "utm", "vmware", "kvm")):
+                    is_vm = True
+            except Exception:
+                pass
+    return {
+        "has_wireless": len(ifaces) > 0,
+        "interfaces": sorted(set(ifaces)),
+        "is_vm": is_vm,
+        "summary": (
+            f"802.11 wireless adapter(s) detected: {', '.join(ifaces)}"
+            if ifaces
+            else (
+                "No raw 802.11 wireless interface detected (UTM/QEMU virtual ethernet active). "
+                "Offline .cap/.pcapng auditing works natively; live monitor mode & packet injection "
+                "require passing through an external USB Wi-Fi adapter in UTM USB settings."
+            )
+        ),
+    }
+
+
+def is_tool_installed(tool):
+    """Honestly detect if a tool is installed via PATH binary or dpkg status."""
+    bin_name = tool.get("bin", "")
+    if bin_name and shutil.which(bin_name):
+        return True
+    for extra_dir in ("/usr/sbin", "/sbin", "/usr/local/sbin"):
+        if bin_name and os.path.isfile(os.path.join(extra_dir, bin_name)):
+            return True
+    apt_pkg = tool.get("apt", "")
+    if apt_pkg and shutil.which("dpkg-query"):
+        try:
+            r = subprocess.run(
+                ["dpkg-query", "-W", "-f=${Status}", apt_pkg],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=3,
+            )
+            if "install ok installed" in r.stdout:
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def find_tool(catalog, tool_id_or_bin):
+    needle = tool_id_or_bin.strip().lower()
+    for cat in catalog.get("categories", []):
+        for t in cat.get("tools", []):
+            if (
+                t.get("id", "").lower() == needle
+                or t.get("bin", "").lower() == needle
+                or t.get("apt", "").lower() == needle
+            ):
+                return t, cat
+    return None, None
+
+
+def build_enable_kali_repo_script():
+    return (
+        "set -e\n"
+        "export DEBIAN_FRONTEND=noninteractive\n"
+        "echo '[AURA Security] Configuring official Kali Rolling repository with safe Pin-Priority 100...'\n"
+        "mkdir -p /etc/apt/keyrings /etc/apt/sources.list.d /etc/apt/preferences.d\n"
+        "if [ ! -s /etc/apt/keyrings/kali-archive-keyring.gpg ]; then\n"
+        "  curl -fsSL https://archive.kali.org/archive-key.asc | gpg --dearmor -o /etc/apt/keyrings/kali-archive-keyring.gpg\n"
+        "  chmod 644 /etc/apt/keyrings/kali-archive-keyring.gpg\n"
+        "fi\n"
+        f"cat > {KALI_LIST_PATH} <<'EOF'\n"
+        "deb [signed-by=/etc/apt/keyrings/kali-archive-keyring.gpg] http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware\n"
+        "EOF\n"
+        f"cat > {KALI_PREF_PATH} <<'EOF'\n"
+        "Package: *\n"
+        "Pin: release n=kali-rolling\n"
+        "Pin-Priority: 100\n"
+        "EOF\n"
+        "apt-get update\n"
+        "echo '[AURA Security] Kali Rolling repository enabled safely (Pin-Priority: 100).'\n"
+    )
+
+
+def build_apt_action_script(action, tool):
+    apt_pkg = tool.get("apt", tool.get("id", ""))
+    needs_kali = bool(tool.get("kali_repo")) and not is_kali_repo_enabled()
+    script = "set -e\nexport DEBIAN_FRONTEND=noninteractive\n"
+    if action in ("install", "update"):
+        if needs_kali:
+            script += build_enable_kali_repo_script()
+        else:
+            script += "apt-get update -y || true\n"
+        if bool(tool.get("kali_repo")):
+            script += f"apt-get install -y -t kali-rolling {apt_pkg} || apt-get install -y {apt_pkg}\n"
+        else:
+            script += f"apt-get install -y {apt_pkg}\n"
+        script += f"echo '[AURA Security] {tool.get('name')} ({apt_pkg}) is ready.'\n"
+    elif action == "remove":
+        script += f"apt-get remove -y {apt_pkg}\n"
+        script += f"echo '[AURA Security] Removed {tool.get('name')} ({apt_pkg}).'\n"
+    return script
+
+
+def privilege_cmd(shell_script):
+    if os.geteuid() == 0:
+        return ["bash", "-c", shell_script]
+    if shutil.which("pkexec") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return ["pkexec", "bash", "-c", shell_script]
+    return ["sudo", "bash", "-c", shell_script]
+
+
+def launch_tool_process(tool):
+    """Launch a tool either directly (if GUI) or inside Celestia Terminal with helpful context."""
+    if not is_tool_installed(tool):
+        return False, f"{tool.get('name')} is not installed yet. Install package '{tool.get('apt')}' first."
+
+    bin_name = tool.get("bin", "")
+    example = tool.get("example") or f"{bin_name} --help"
+    hw_note = ""
+    if tool.get("wireless_hw"):
+        hw = detect_wireless_hardware()
+        if not hw["has_wireless"]:
+            hw_note = (
+                "echo -e '\\033[1;36m[AURA Wireless Notice]\\033[0m "
+                + hw["summary"].replace("'", "")
+                + "'\n"
+            )
+
+    if tool.get("gui") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        try:
+            subprocess.Popen([bin_name], start_new_session=True)
+            return True, f"Launched {tool.get('name')} ({bin_name})."
+        except Exception as exc:
+            return False, f"Failed to launch {bin_name}: {exc}"
+
+    banner = (
+        f"clear; "
+        f"echo -e '\\033[1;34m╭──────────────────────────────────────────────────────────────╮\\033[0m'; "
+        f"echo -e '\\033[1;34m│\\033[0m  \\033[1;36mAURA SECURITY CENTER\\033[0m · \\033[1;37m{tool.get('name')}\\033[0m'; "
+        f"echo -e '\\033[1;34m│\\033[0m  Binary: \\033[1;32m{bin_name}\\033[0m   Example: \\033[0;36m{example}\\033[0m'; "
+        f"echo -e '\\033[1;34m╰──────────────────────────────────────────────────────────────╯\\033[0m'; "
+        f"{hw_note}"
+        f"echo ''; "
+        f"{example} 2>&1 | head -n 45 || true; "
+        f"echo ''; "
+        f"echo -e '\\033[0;36mInteractive Celestia Security Shell ready. Type `{bin_name}` commands below:\\033[0m'; "
+        f"exec ${{SHELL:-/bin/zsh}}"
+    )
+
+    for term in (
+        ["xfce4-terminal", "--title", f"AURA Security — {tool.get('name')}", "-x", "bash", "-c", banner],
+        ["x-terminal-emulator", "-e", "bash", "-c", banner],
+    ):
+        if shutil.which(term[0]) and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+            subprocess.Popen(term, start_new_session=True)
+            return True, f"Opened {tool.get('name')} in Celestia Terminal."
+
+    # Fallback when called from CLI without X11
+    subprocess.run(["bash", "-c", f"{example} 2>&1 | head -n 40"], check=False)
+    return True, f"Executed {example}"
+
+
+# ---------------------------------------------------------------------------
+# CLI Mode
+# ---------------------------------------------------------------------------
+def run_cli(args):
+    catalog = load_catalog()
+    arch = platform.machine()
+    hw = detect_wireless_hardware()
+
+    if args.wireless_check:
+        print(json.dumps(hw, indent=2))
+        return 0
+
+    if args.list or args.status:
+        total = 0
+        installed_count = 0
+        print(f"AURA Security Center — Architecture: {arch} | Kali Rolling Repo: {'enabled' if is_kali_repo_enabled() else 'optional (not enabled)'}")
+        print(f"Wireless Status: {hw['summary']}\n")
+        for cat in catalog.get("categories", []):
+            print(f"=== {cat['name']} ===")
+            for t in cat.get("tools", []):
+                total += 1
+                inst = is_tool_installed(t)
+                if inst:
+                    installed_count += 1
+                badge = "[INSTALLED]" if inst else ("[KALI-REPO]" if t.get("kali_repo") else "[AVAILABLE]")
+                print(f"  {badge:12} {t['id']:14} ({t['name']}) — {t['desc']}")
+            print()
+        print(f"Summary: {installed_count}/{total} security tools currently installed.")
+        return 0
+
+    if args.enable_kali_repo:
+        cmd = privilege_cmd(build_enable_kali_repo_script())
+        return subprocess.call(cmd)
+
+    target_id = args.install or args.remove or args.update or args.launch
+    if target_id:
+        tool, _cat = find_tool(catalog, target_id)
+        if not tool:
+            print(f"Error: Tool '{target_id}' not found in Aura Security Center catalog.", file=sys.stderr)
+            return 1
+        if args.launch:
+            ok, msg = launch_tool_process(tool)
+            print(msg)
+            return 0 if ok else 1
+        action = "install" if args.install else ("remove" if args.remove else "update")
+        script = build_apt_action_script(action, tool)
+        return subprocess.call(privilege_cmd(script))
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# GTK3 GUI Mode
+# ---------------------------------------------------------------------------
+CSS = b"""
+window {
+    background-color: #050D1A;
+    color: #ECF4FF;
+    font-family: "Rajdhani", "Inter", "Noto Sans", sans-serif;
+}
+.sec-sidebar {
+    background-color: #071426;
+    border-right: 1px solid rgba(85, 214, 255, 0.16);
+    padding: 14px 10px;
+}
+.sec-header {
+    background-image: linear-gradient(135deg, rgba(11, 31, 58, 0.92), rgba(7, 20, 38, 0.96));
+    border-bottom: 1px solid rgba(85, 214, 255, 0.18);
+    padding: 16px 22px;
+}
+.sec-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    color: #ECF4FF;
+}
+.sec-subtitle {
+    font-size: 12.5px;
+    color: #8EA8C8;
+}
+.sec-card {
+    background-color: rgba(11, 27, 49, 0.82);
+    border: 1px solid rgba(85, 214, 255, 0.16);
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+.sec-card:hover {
+    border-color: rgba(85, 214, 255, 0.44);
+    background-color: rgba(15, 36, 66, 0.92);
+}
+.badge-installed {
+    background-color: rgba(34, 211, 166, 0.16);
+    color: #38E8B8;
+    border: 1px solid rgba(56, 232, 184, 0.42);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.badge-available {
+    background-color: rgba(22, 119, 255, 0.16);
+    color: #6BB6FF;
+    border: 1px solid rgba(22, 119, 255, 0.38);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.badge-kali {
+    background-color: rgba(85, 214, 255, 0.13);
+    color: #55D6FF;
+    border: 1px solid rgba(85, 214, 255, 0.40);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.btn-launch {
+    background-image: linear-gradient(135deg, #1677FF, #00A8FF);
+    color: #FFFFFF;
+    border-radius: 10px;
+    padding: 6px 14px;
+    font-weight: 700;
+    border: 1px solid rgba(85, 214, 255, 0.45);
+}
+.btn-secondary {
+    background-color: rgba(16, 37, 68, 0.9);
+    color: #D2E4FF;
+    border-radius: 10px;
+    padding: 6px 12px;
+    border: 1px solid rgba(85, 214, 255, 0.22);
+}
+.btn-danger {
+    background-color: rgba(239, 68, 68, 0.16);
+    color: #FCA5A5;
+    border-radius: 10px;
+    padding: 6px 12px;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.hw-banner {
+    background-color: rgba(12, 32, 60, 0.85);
+    border: 1px solid rgba(85, 214, 255, 0.24);
+    border-radius: 10px;
+    padding: 8px 14px;
+}
+.log-box {
+    background-color: #030912;
+    color: #55D6FF;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 11.5px;
+    padding: 8px;
+}
+"""
+
+
+def run_gui():
+    import gi
+
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import GLib, Gtk, Pango
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(CSS)
+    Gtk.StyleContext.add_provider_for_screen(
+        Gtk.Window().get_screen(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
+
+    class SecurityCenterWindow(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="Aura Security Center — Kali & Defensive Toolkit")
+            self.set_default_size(1140, 740)
+            self.set_position(Gtk.WindowPosition.CENTER)
+            self.set_icon_name("aura-security")
+
+            self.catalog = load_catalog()
+            self.favorites = load_favorites()
+            self.active_category = "all"
+            self.search_query = ""
+            self.busy = False
+
+            root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            self.add(root)
+
+            # Top header bar
+            header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+            header.get_style_context().add_class("sec-header")
+
+            icon_img = Gtk.Image.new_from_icon_name("aura-security", Gtk.IconSize.DIALOG)
+            header.pack_start(icon_img, False, False, 0)
+
+            title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            t_lbl = Gtk.Label(label="AURA SECURITY CENTER", xalign=0)
+            t_lbl.get_style_context().add_class("sec-title")
+            s_lbl = Gtk.Label(
+                label=f"Kali Linux & Debian Security Suite · Arch: {platform.machine()} · Authorized & Educational Use",
+                xalign=0,
+            )
+            s_lbl.get_style_context().add_class("sec-subtitle")
+            title_box.pack_start(t_lbl, False, False, 0)
+            title_box.pack_start(s_lbl, False, False, 0)
+            header.pack_start(title_box, False, False, 0)
+
+            # Search entry
+            self.search_entry = Gtk.SearchEntry()
+            self.search_entry.set_placeholder_text("Search Nmap, Wireshark, Metasploit, SQLMap, Hydra...")
+            self.search_entry.set_size_request(300, -1)
+            self.search_entry.connect("search-changed", self.on_search_changed)
+            header.pack_end(self.search_entry, False, False, 0)
+
+            # Kali repo toggle button
+            self.kali_btn = Gtk.Button()
+            self.kali_btn.get_style_context().add_class("btn-secondary")
+            self.kali_btn.connect("clicked", self.on_enable_kali_repo)
+            header.pack_end(self.kali_btn, False, False, 0)
+            self.update_kali_repo_button()
+
+            root.pack_start(header, False, False, 0)
+
+            # Main split pane
+            body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            root.pack_start(body, True, True, 0)
+
+            # Left category sidebar
+            sidebar_scroll = Gtk.ScrolledWindow()
+            sidebar_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            sidebar_scroll.set_size_request(250, -1)
+            self.sidebar = Gtk.ListBox()
+            self.sidebar.set_selection_mode(Gtk.SelectionMode.SINGLE)
+            self.sidebar.get_style_context().add_class("sec-sidebar")
+            self.sidebar.connect("row-selected", self.on_category_selected)
+            sidebar_scroll.add(self.sidebar)
+            body.pack_start(sidebar_scroll, False, False, 0)
+
+            self.populate_sidebar()
+
+            # Right content area
+            right_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            right_col.set_margin_top(14)
+            right_col.set_margin_bottom(14)
+            right_col.set_margin_start(18)
+            right_col.set_margin_end(18)
+            body.pack_start(right_col, True, True, 0)
+
+            # Wireless / VM hardware status banner
+            hw = detect_wireless_hardware()
+            hw_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            hw_box.get_style_context().add_class("hw-banner")
+            hw_lbl = Gtk.Label(label=f"◈ Hardware & VM Environment: {hw['summary']}", xalign=0)
+            hw_lbl.set_line_wrap(True)
+            hw_box.pack_start(hw_lbl, True, True, 0)
+            self.stats_lbl = Gtk.Label(label="", xalign=1)
+            hw_box.pack_end(self.stats_lbl, False, False, 0)
+            right_col.pack_start(hw_box, False, False, 0)
+
+            # Scrollable tool list
+            self.tools_scroll = Gtk.ScrolledWindow()
+            self.tools_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            self.tools_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            self.tools_scroll.add(self.tools_box)
+            right_col.pack_start(self.tools_scroll, True, True, 0)
+
+            # Live progress & command output drawer
+            log_frame = Gtk.Frame(label=" Package & Tool Activity Log ")
+            log_scroll = Gtk.ScrolledWindow()
+            log_scroll.set_size_request(-1, 110)
+            self.log_view = Gtk.TextView()
+            self.log_view.set_editable(False)
+            self.log_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+            self.log_view.get_style_context().add_class("log-box")
+            log_scroll.add(self.log_view)
+            log_frame.add(log_scroll)
+            right_col.pack_start(log_frame, False, False, 0)
+
+            self.append_log(
+                "Aura Security Center ready. Installed status is verified live against PATH and dpkg."
+            )
+            self.refresh_tools()
+
+        def update_kali_repo_button(self):
+            if is_kali_repo_enabled():
+                self.kali_btn.set_label("✓ Kali Rolling Repo (Pinned 100)")
+            else:
+                self.kali_btn.set_label("+ Enable Kali Rolling Repo")
+
+        def populate_sidebar(self):
+            special = [
+                ("all", "All Security Tools", "aura-security"),
+                ("favorites", "★ Favorites", "aura-security"),
+                ("installed", "● Installed Tools", "aura-security"),
+            ]
+            for cid, name, icon in special:
+                self.sidebar.add(self.make_sidebar_row(cid, name, icon))
+            for cat in self.catalog.get("categories", []):
+                self.sidebar.add(
+                    self.make_sidebar_row(cat["id"], cat["name"], cat.get("icon", "aura-security"))
+                )
+            self.sidebar.show_all()
+            self.sidebar.select_row(self.sidebar.get_row_at_index(0))
+
+        def make_sidebar_row(self, cid, title, icon_name):
+            row = Gtk.ListBoxRow()
+            row.category_id = cid
+            hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            hbox.set_margin_top(7)
+            hbox.set_margin_bottom(7)
+            hbox.set_margin_start(8)
+            hbox.set_margin_end(8)
+            img = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.MENU)
+            lbl = Gtk.Label(label=title, xalign=0)
+            hbox.pack_start(img, False, False, 0)
+            hbox.pack_start(lbl, True, True, 0)
+            row.add(hbox)
+            return row
+
+        def append_log(self, line):
+            buf = self.log_view.get_buffer()
+            end_iter = buf.get_end_iter()
+            buf.insert(end_iter, line.rstrip() + "\n")
+            mark = buf.create_mark(None, buf.get_end_iter(), False)
+            self.log_view.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
+
+        def on_search_changed(self, entry):
+            self.search_query = entry.get_text().strip().lower()
+            self.refresh_tools()
+
+        def on_category_selected(self, _listbox, row):
+            if row is not None:
+                self.active_category = getattr(row, "category_id", "all")
+                self.refresh_tools()
+
+        def refresh_tools(self):
+            for child in self.tools_box.get_children():
+                self.tools_box.remove(child)
+
+            total_all = 0
+            installed_all = 0
+            seen_ids = set()
+
+            for cat in self.catalog.get("categories", []):
+                for tool in cat.get("tools", []):
+                    tid = tool["id"]
+                    if tid in seen_ids:
+                        continue
+                    seen_ids.add(tid)
+                    inst = is_tool_installed(tool)
+                    total_all += 1
+                    if inst:
+                        installed_all += 1
+
+                    if self.active_category == "favorites" and tid not in self.favorites:
+                        continue
+                    if self.active_category == "installed" and not inst:
+                        continue
+                    if (
+                        self.active_category not in ("all", "favorites", "installed")
+                        and cat["id"] != self.active_category
+                    ):
+                        continue
+
+                    haystack = f"{tool['name']} {tool['id']} {tool.get('bin','')} {tool.get('desc','')} {cat['name']}".lower()
+                    if self.search_query and self.search_query not in haystack:
+                        continue
+
+                    self.tools_box.pack_start(self.build_tool_card(tool, cat, inst), False, False, 0)
+
+            self.stats_lbl.set_text(f"{installed_all} / {total_all} Installed")
+            self.tools_box.show_all()
+
+        def build_tool_card(self, tool, cat, installed):
+            card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+            card.get_style_context().add_class("sec-card")
+
+            icon = Gtk.Image.new_from_icon_name(tool.get("icon", "aura-security"), Gtk.IconSize.DND)
+            card.pack_start(icon, False, False, 0)
+
+            info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            top_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+            name_lbl = Gtk.Label(xalign=0)
+            name_lbl.set_markup(f"<b>{GLib.markup_escape_text(tool['name'])}</b>")
+            top_row.pack_start(name_lbl, False, False, 0)
+
+            badge = Gtk.Label(
+                label="● Installed"
+                if installed
+                else ("◇ Kali Rolling Repo" if tool.get("kali_repo") else "○ Available (APT)")
+            )
+            badge.get_style_context().add_class(
+                "badge-installed"
+                if installed
+                else ("badge-kali" if tool.get("kali_repo") else "badge-available")
+            )
+            top_row.pack_start(badge, False, False, 0)
+
+            cat_lbl = Gtk.Label(label=f"·  {cat['name']}  ·  pkg: {tool.get('apt')}", xalign=0)
+            cat_lbl.get_style_context().add_class("sec-subtitle")
+            top_row.pack_start(cat_lbl, False, False, 0)
+
+            info.pack_start(top_row, False, False, 0)
+
+            desc_lbl = Gtk.Label(label=tool.get("desc", ""), xalign=0)
+            desc_lbl.set_line_wrap(True)
+            desc_lbl.set_max_width_chars(78)
+            desc_lbl.set_ellipsize(Pango.EllipsizeMode.NONE)
+            info.pack_start(desc_lbl, False, False, 0)
+
+            card.pack_start(info, True, True, 0)
+
+            # Action buttons
+            actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            actions.set_valign(Gtk.Align.CENTER)
+
+            fav_btn = Gtk.Button(label="★" if tool["id"] in self.favorites else "☆")
+            fav_btn.get_style_context().add_class("btn-secondary")
+            fav_btn.set_tooltip_text("Toggle favorite")
+            fav_btn.connect("clicked", self.on_toggle_favorite, tool["id"])
+            actions.pack_start(fav_btn, False, False, 0)
+
+            if installed:
+                launch_btn = Gtk.Button(label="Launch")
+                launch_btn.get_style_context().add_class("btn-launch")
+                launch_btn.connect("clicked", self.on_launch_tool, tool)
+                actions.pack_start(launch_btn, False, False, 0)
+
+                upd_btn = Gtk.Button(label="Update")
+                upd_btn.get_style_context().add_class("btn-secondary")
+                upd_btn.connect("clicked", self.on_pkg_action, "update", tool)
+                actions.pack_start(upd_btn, False, False, 0)
+
+                rm_btn = Gtk.Button(label="Remove")
+                rm_btn.get_style_context().add_class("btn-danger")
+                rm_btn.connect("clicked", self.on_pkg_action, "remove", tool)
+                actions.pack_start(rm_btn, False, False, 0)
+            else:
+                inst_btn = Gtk.Button(label="Install")
+                inst_btn.get_style_context().add_class("btn-launch")
+                inst_btn.connect("clicked", self.on_pkg_action, "install", tool)
+                actions.pack_start(inst_btn, False, False, 0)
+
+            card.pack_end(actions, False, False, 0)
+            return card
+
+        def on_toggle_favorite(self, _btn, tool_id):
+            if tool_id in self.favorites:
+                self.favorites.remove(tool_id)
+            else:
+                self.favorites.add(tool_id)
+            save_favorites(self.favorites)
+            self.refresh_tools()
+
+        def on_launch_tool(self, _btn, tool):
+            ok, msg = launch_tool_process(tool)
+            self.append_log(msg)
+
+        def on_enable_kali_repo(self, _btn):
+            if self.busy:
+                return
+            self.run_privileged_async(
+                "Enabling official Kali Rolling repository (Pin-Priority: 100)...",
+                build_enable_kali_repo_script(),
+            )
+
+        def on_pkg_action(self, _btn, action, tool):
+            if self.busy:
+                self.append_log("Another package operation is currently running; please wait.")
+                return
+            script = build_apt_action_script(action, tool)
+            self.run_privileged_async(
+                f"Running {action} for {tool['name']} ({tool.get('apt')})...", script
+            )
+
+        def run_privileged_async(self, banner_msg, script):
+            self.busy = True
+            self.append_log(f"==> {banner_msg}")
+
+            def worker():
+                cmd = privilege_cmd(script)
+                try:
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                    )
+                    for line in proc.stdout:
+                        GLib.idle_add(self.append_log, line.rstrip())
+                    rc = proc.wait()
+                    if rc == 0:
+                        GLib.idle_add(self.append_log, "==> Operation completed successfully.")
+                    else:
+                        GLib.idle_add(
+                            self.append_log, f"==> Operation exited with status code {rc}."
+                        )
+                except Exception as exc:
+                    GLib.idle_add(self.append_log, f"==> Error: {exc}")
+                finally:
+                    GLib.idle_add(self.finish_async_op)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        def finish_async_op(self):
+            self.busy = False
+            self.update_kali_repo_button()
+            self.refresh_tools()
+
+    win = SecurityCenterWindow()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Aura Security Center — Kali Linux & Debian Security Suite"
+    )
+    parser.add_argument("--list", action="store_true", help="List all catalog security tools and status")
+    parser.add_argument("--status", action="store_true", help="Show installed vs available security tools")
+    parser.add_argument("--install", metavar="TOOL", help="Install a security tool by id or binary name")
+    parser.add_argument("--remove", metavar="TOOL", help="Remove a security tool by id or binary name")
+    parser.add_argument("--update", metavar="TOOL", help="Update a security tool by id or binary name")
+    parser.add_argument("--launch", metavar="TOOL", help="Launch a security tool")
+    parser.add_argument(
+        "--enable-kali-repo",
+        action="store_true",
+        help="Configure official kali-rolling repository with safe Pin-Priority 100",
+    )
+    parser.add_argument(
+        "--wireless-check",
+        action="store_true",
+        help="Check 802.11 wireless hardware and VM passthrough status",
+    )
+    args = parser.parse_args()
+
+    cli_rc = run_cli(args)
+    if cli_rc is not None:
+        sys.exit(cli_rc)
+
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        args.status = True
+        sys.exit(run_cli(args) or 0)
+
+    sys.exit(run_gui())
+
+
+if __name__ == "__main__":
+    main()

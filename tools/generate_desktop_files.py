@@ -25,7 +25,16 @@ APPS = [
     ("celestia-tutorial", "Celestia Tutorial",
      'xfce4-terminal --title="Celestia Tutorial" -e celestia-tutorial',
      "celestia-shell", "A five-minute guided tour of Celestia Shell",
-     "System;Documentation;", {}),
+     "System;Utility;Documentation;", {}),
+    ("aura-launcher", "AURA Launcher", "aura-launcher", "aura-launcher",
+     "Searchable application launcher with Kali and system categories",
+     "System;Utility;", {}),
+    ("aura-security", "AURA Security Center", "aura-security", "aura-security",
+     "Kali Linux and Debian security toolkit manager and launcher",
+     "System;Security;Network;", {}),
+    ("aura-appbar", "AURA App Bar", "aura-appbar", "aura-appbar",
+     "Floating dark-blue glass quick-launch bar and desktop search",
+     "System;Utility;", {}),
     ("aura-browser", "AURA Browser", "firefox-esr %u", "aura-browser",
      "Surf the web with Firefox ESR", "Network;WebBrowser;",
      {"MimeType": "text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;"}),
@@ -93,9 +102,9 @@ HIDE = [
     "thunar-volman-settings.desktop", "org.xfce.thunar.desktop",
 ]
 
-DOCK_APPS = ["aura-finder", "aura-browser", "celestia-shell", "aura-studio",
-             "aura-notes", "aura-photos", "aura-media", "aura-settings",
-             "aura-appcenter"]
+DOCK_APPS = ["aura-launcher", "celestia-shell", "aura-finder", "aura-browser",
+             "aura-security", "aura-studio", "aura-monitor", "aura-appcenter",
+             "aura-settings"]
 
 
 def main():

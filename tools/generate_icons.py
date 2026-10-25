@@ -333,6 +333,91 @@ APPS = {
     <circle cx="178" cy="90" r="20" fill="#F4F9FF"/>
     <rect x="46" y="138" width="164" height="56" rx="28" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="2"/>
     <circle cx="78" cy="166" r="20" fill="#55D6FF"/>"""),
+
+    # 23. Aura Application Launcher & App Bar
+    "aura-launcher": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <rect x="52" y="52" width="66" height="66" rx="18" fill="url(#glassFrost)"/>
+    <rect x="138" y="52" width="66" height="66" rx="18" fill="url(#glassBlue)"/>
+    <rect x="52" y="138" width="66" height="66" rx="18" fill="url(#glassBlue)"/>
+    <rect x="138" y="138" width="66" height="66" rx="33" fill="#55D6FF"/>
+    <polygon points="85,68 68,100 102,100" fill="#0B2345"/>"""),
+
+    "aura-appbar": ("#050D1A", "#0B2345", "#143D82", "#55D6FF", """
+    <rect x="40" y="50" width="38" height="156" rx="19" fill="url(#glassBlue)" stroke="#F4F9FF" stroke-width="2"/>
+    <circle cx="59" cy="80" r="9" fill="#F4F9FF"/>
+    <circle cx="59" cy="112" r="9" fill="#BDEBFF"/>
+    <circle cx="59" cy="144" r="9" fill="#55D6FF"/>
+    <circle cx="59" cy="176" r="9" fill="#F4F9FF" opacity="0.7"/>
+    <rect x="96" y="106" width="120" height="44" rx="22" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="2"/>
+    <circle cx="122" cy="128" r="9" fill="none" stroke="#55D6FF" stroke-width="3"/>
+    <line x1="129" y1="135" x2="136" y2="142" stroke="#55D6FF" stroke-width="3" stroke-linecap="round"/>"""),
+
+    # 24. Aura Security Center & Kali Linux Toolkit Icons
+    "aura-security": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <path d="M128 34 L206 64 V124 C206 176 170 210 128 224 C86 210 50 176 50 124 V64 Z" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="3"/>
+    <polygon points="128,62 76,162 104,162 128,114 140,136 154,112" fill="url(#glassFrost)"/>
+    <polygon points="128,62 154,112 140,136 158,162 180,162" fill="url(#glassBlue)"/>
+    <path d="M92 182 H164" stroke="#55D6FF" stroke-width="5" stroke-linecap="round"/>"""),
+
+    "aura-nmap": ("#050D1A", "#092147", "#124999", "#55D6FF", """
+    <path d="M40 128 Q128 56 216 128 Q128 200 40 128 Z" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="5"/>
+    <circle cx="128" cy="128" r="38" fill="url(#glassBlue)" stroke="#F4F9FF" stroke-width="3"/>
+    <circle cx="128" cy="128" r="14" fill="#050D1A"/>
+    <circle cx="138" cy="118" r="6" fill="#55D6FF"/>"""),
+
+    "aura-wireshark": ("#050D1A", "#0B2959", "#1677FF", "#55D6FF", """
+    <circle cx="128" cy="128" r="80" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="2.5"/>
+    <path d="M72 162 C92 104 128 74 168 68 C154 108 154 136 174 162 Z" fill="url(#glassBlue)" stroke="#F4F9FF" stroke-width="2.5"/>
+    <path d="M56 164 Q92 150 128 164 T200 164" fill="none" stroke="#55D6FF" stroke-width="6" stroke-linecap="round"/>"""),
+
+    "aura-metasploit": ("#050D1A", "#0C2D66", "#1677FF", "#55D6FF", """
+    <path d="M56 54 L128 38 L200 54 V142 C200 182 166 208 128 220 C90 208 56 182 56 142 Z" fill="url(#glassBlue)" stroke="#F4F9FF" stroke-width="2.5"/>
+    <path d="M84 166 V92 L128 134 L172 92 V166" fill="none" stroke="#F4F9FF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>"""),
+
+    "aura-burpsuite": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <rect x="48" y="48" width="160" height="160" rx="28" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="2.5"/>
+    <polygon points="142,56 82,134 126,134 110,200 176,120 130,120" fill="url(#glassFrost)"/>"""),
+
+    "aura-aircrack": ("#050D1A", "#0B2345", "#144796", "#55D6FF", """
+    <path d="M54 114 A96 96 0 0 1 202 114" fill="none" stroke="#1677FF" stroke-width="12" stroke-linecap="round"/>
+    <path d="M78 140 A64 64 0 0 1 178 140" fill="none" stroke="#55D6FF" stroke-width="12" stroke-linecap="round"/>
+    <path d="M102 166 A34 34 0 0 1 154 166" fill="none" stroke="#F4F9FF" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="128" cy="190" r="12" fill="#55D6FF"/>"""),
+
+    "aura-john": ("#050D1A", "#0B2345", "#154084", "#55D6FF", """
+    <circle cx="96" cy="112" r="36" fill="none" stroke="#55D6FF" stroke-width="12"/>
+    <path d="M128 112 H204 V142 M176 112 V136" fill="none" stroke="#F4F9FF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="64" y="164" width="128" height="22" rx="8" fill="url(#glassBlue)"/>"""),
+
+    "aura-hydra": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <path d="M128 198 V82 M84 154 L84 98 L128 132 L172 98 V154" fill="none" stroke="#55D6FF" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="128" cy="68" r="14" fill="#F4F9FF"/>
+    <circle cx="84" cy="86" r="12" fill="#55D6FF"/>
+    <circle cx="172" cy="86" r="12" fill="#55D6FF"/>"""),
+
+    "aura-sqlmap": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <ellipse cx="128" cy="74" rx="58" ry="20" fill="url(#glassBlue)" stroke="#F4F9FF" stroke-width="2"/>
+    <path d="M70 74 V174 C70 188 186 188 186 174 V74" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="3"/>
+    <path d="M70 124 C70 138 186 138 186 124" fill="none" stroke="#55D6FF" stroke-width="3"/>
+    <polygon points="134,94 106,136 130,136 120,170 152,126 128,126" fill="#F4F9FF"/>"""),
+
+    "aura-hashcat": ("#050D1A", "#0B2345", "#14428A", "#55D6FF", """
+    <rect x="46" y="46" width="164" height="164" rx="28" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="2.5"/>
+    <path d="M98 72 L86 184 M166 72 L154 184 M68 108 H188 M64 148 H184" fill="none" stroke="#55D6FF" stroke-width="12" stroke-linecap="round"/>"""),
+
+    "aura-zaproxy": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <polygon points="128,38 206,82 178,196 78,196 50,82" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="3"/>
+    <polyline points="92,88 164,88 92,164 164,164" fill="none" stroke="#F4F9FF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>"""),
+
+    "aura-gobuster": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <circle cx="128" cy="128" r="78" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="3"/>
+    <path d="M72 128 H172 M138 92 L176 128 L138 164" fill="none" stroke="#55D6FF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>"""),
+
+    "aura-nikto": ("#050D1A", "#0B2345", "#1677FF", "#55D6FF", """
+    <circle cx="128" cy="128" r="76" fill="url(#glassDeep)" stroke="#55D6FF" stroke-width="3"/>
+    <circle cx="128" cy="128" r="42" fill="none" stroke="#1677FF" stroke-width="4"/>
+    <path d="M128 38 V218 M38 128 H218" stroke="#55D6FF" stroke-width="4" stroke-opacity="0.7"/>
+    <circle cx="128" cy="128" r="10" fill="#F4F9FF"/>"""),
 }
 
 # Trash icon (sculpted frosted silver-blue crystal bin)
@@ -419,6 +504,20 @@ ALIASES = {
         "security-high": "aura-firewall",
         "system-lock-screen": "aura-lock",
         "xfce4-screensaver": "aura-lock",
+        "kali-menu": "aura-security",
+        "nmap": "aura-nmap",
+        "wireshark": "aura-wireshark",
+        "org.wireshark.Wireshark": "aura-wireshark",
+        "metasploit": "aura-metasploit",
+        "burpsuite": "aura-burpsuite",
+        "aircrack-ng": "aura-aircrack",
+        "john": "aura-john",
+        "hydra": "aura-hydra",
+        "sqlmap": "aura-sqlmap",
+        "hashcat": "aura-hashcat",
+        "zaproxy": "aura-zaproxy",
+        "gobuster": "aura-gobuster",
+        "nikto": "aura-nikto",
     },
 }
 
@@ -470,10 +569,15 @@ def main():
     # Copy branding SVGs into rootfs/usr/share/pixmaps as well
     pixmaps = os.path.join(REPO, "rootfs", "usr", "share", "pixmaps")
     os.makedirs(pixmaps, exist_ok=True)
-    for fn in ("aura-logo.svg", "aura-logo-symbol.svg", "aura-logo-mono.svg"):
+    for fn in ("aura-logo.svg", "aura-logo-symbol.svg", "aura-logo-mono.svg", "aura-avatar.svg"):
         src = os.path.join(REPO, "assets", "branding", fn)
         if os.path.isfile(src):
             shutil.copyfile(src, os.path.join(pixmaps, fn))
+    # Also install default user avatar into /etc/skel/.face.icon
+    skel_face = os.path.join(REPO, "rootfs", "etc", "skel", ".face.icon")
+    av_src = os.path.join(REPO, "assets", "branding", "aura-avatar.svg")
+    if os.path.isfile(av_src):
+        shutil.copyfile(av_src, skel_face)
 
     for name, (c1, c2, c3, glow, glyph) in APPS.items():
         write(os.path.join(ROOT, "scalable", "apps", name + ".svg"),

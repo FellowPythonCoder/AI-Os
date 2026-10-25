@@ -133,12 +133,36 @@ actions:
       - timeshift
       - fonts-inter
       - fonts-jetbrains-mono
+      - fonts-fira-code
       - fonts-noto-core
       - fonts-noto-color-emoji
       - fonts-dejavu
       - adwaita-icon-theme
       - librsvg2-bin
       - imagemagick
+      - nmap
+      - tcpdump
+      - whois
+      - bind9-dnsutils
+      - netcat-openbsd
+      - socat
+      - mtr-tiny
+      - sqlmap
+      - gobuster
+      - dirb
+      - whatweb
+      - aircrack-ng
+      - john
+      - hydra
+      - crunch
+      - binwalk
+      - sleuthkit
+      - foremost
+      - libimage-exiftool-perl
+      - yara
+      - radare2
+      - lynis
+      - rkhunter
       - python3
       - python3-gi
       - python3-gi-cairo

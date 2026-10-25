@@ -154,6 +154,56 @@ class AuraCli(unittest.TestCase):
                                capture_output=True, text=True, timeout=15)
         self.assertNotEqual(r_bad.returncode, 0)
 
+    def test_font_presets_and_css(self):
+        r_list = self.cli("font", "list")
+        self.assertEqual(r_list.returncode, 0)
+        self.assertIn("orbitron", r_list.stdout)
+        self.assertIn("rajdhani", r_list.stdout)
+        r_set = self.cli("font", "orbitron")
+        self.assertEqual(r_set.returncode, 0)
+        font_css = os.path.join(self.tmp, ".themes", "AuraCustom",
+                                "gtk-3.0", "font.css")
+        self.assertTrue(os.path.isfile(font_css))
+        self.assertIn("Orbitron", open(font_css, encoding="utf-8").read())
+
+    def test_kali_security_center_and_cli(self):
+        r = self.cli("kali", "status")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("Information Gathering", r.stdout)
+        self.assertIn("Web Application Security", r.stdout)
+        self.assertIn("Wireless Security", r.stdout)
+        self.assertIn("nmap", r.stdout)
+        self.assertIn("wireshark", r.stdout)
+        self.assertIn("metasploit", r.stdout)
+        r_hw = self.cli("kali", "wireless")
+        self.assertEqual(r_hw.returncode, 0)
+        hw_data = json.loads(r_hw.stdout)
+        self.assertIn("has_wireless", hw_data)
+        self.assertIn("summary", hw_data)
+
+    def test_launcher_and_appbar_cli(self):
+        r_ln = self.cli("launcher", "list")
+        self.assertEqual(r_ln.returncode, 0)
+        self.assertIn("AURA Security Center", r_ln.stdout)
+        self.assertIn("Total discovered applications:", r_ln.stdout)
+        r_bar = self.cli("appbar", "status")
+        self.assertEqual(r_bar.returncode, 0)
+        self.assertIn("AURA Cool App Bar", r_bar.stdout)
+
+    def test_quicksettings_and_monitor_status(self):
+        qs_bin = os.path.join(REPO, "rootfs", "usr", "bin", "aura-quicksettings")
+        r_qs = subprocess.run([sys.executable, qs_bin, "--status"],
+                              capture_output=True, text=True, timeout=15)
+        self.assertEqual(r_qs.returncode, 0)
+        self.assertIn("Network:", r_qs.stdout)
+        self.assertIn("Firewall:", r_qs.stdout)
+        mon_bin = os.path.join(REPO, "rootfs", "usr", "bin", "aura-monitor")
+        r_mon = subprocess.run([sys.executable, mon_bin, "--status"],
+                               capture_output=True, text=True, timeout=15)
+        self.assertEqual(r_mon.returncode, 0)
+        self.assertIn("Guest RAM:", r_mon.stdout)
+        self.assertIn("Temperatures:", r_mon.stdout)
+
 
 class Assets(unittest.TestCase):
     def test_all_generators_idempotent(self):
@@ -233,10 +283,11 @@ class Assets(unittest.TestCase):
     def test_liquid_glass_wallpapers_and_icons_inventory(self):
         wp_dir = os.path.join(REPO, "rootfs/usr/share/backgrounds/aura")
         for wp in (
-            "aura-midnight-peaks.jpg", "aura-glacier-dawn.jpg",
-            "aura-aurora-ridge.jpg", "aura-crystal-valley.jpg",
-            "aura-liquid-waves.jpg", "aura-cyan-horizon.jpg",
-            "aura-minimal-gradient.jpg", "aura-lock-peaks.jpg",
+            "aura-dark-peaks.jpg", "aura-midnight-peaks.jpg",
+            "aura-glacier-dawn.jpg", "aura-aurora-ridge.jpg",
+            "aura-crystal-valley.jpg", "aura-liquid-waves.jpg",
+            "aura-cyan-horizon.jpg", "aura-minimal-gradient.jpg",
+            "aura-lock-peaks.jpg",
         ):
             self.assertTrue(os.path.isfile(os.path.join(wp_dir, wp)), wp)
         icons_dir = os.path.join(REPO, "rootfs/usr/share/icons/AuraIcons/scalable/apps")
@@ -247,6 +298,10 @@ class Assets(unittest.TestCase):
             "aura-photos", "aura-media", "aura-transfer", "aura-archive",
             "aura-screenshot", "aura-pdf", "aura-backup", "aura-taskmanager",
             "aura-help", "aura-firewall", "aura-lock", "aura-quicksettings",
+            "aura-launcher", "aura-appbar", "aura-security", "aura-nmap",
+            "aura-wireshark", "aura-metasploit", "aura-burpsuite",
+            "aura-aircrack", "aura-john", "aura-hydra", "aura-sqlmap",
+            "aura-hashcat", "aura-zaproxy", "aura-gobuster", "aura-nikto",
             "user-trash",
         ):
             p = os.path.join(icons_dir, req + ".svg")

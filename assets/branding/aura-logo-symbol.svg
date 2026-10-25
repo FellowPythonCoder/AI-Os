@@ -1,21 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- AURA OS Liquid Glass symbol — minimalist mountain peak crest for panel/greeter/lock screen -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<!-- AURA OS — Geometric Angular Mountain Symbol (Transparent background) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="symLit" x1="0" y1="0" x2="0.3" y2="1">
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.48">
+      <stop offset="0" stop-color="#55D6FF" stop-opacity="0.48"/>
+      <stop offset="0.6" stop-color="#1677FF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#050D1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="leftBlade" x1="0.2" y1="0" x2="0.8" y2="1">
       <stop offset="0" stop-color="#F4F9FF"/>
-      <stop offset="0.55" stop-color="#BDEBFF"/>
-      <stop offset="1" stop-color="#55D6FF"/>
+      <stop offset="0.3" stop-color="#55D6FF"/>
+      <stop offset="1" stop-color="#1677FF"/>
     </linearGradient>
-    <linearGradient id="symShade" x1="0" y1="0" x2="0.8" y2="1">
+    <linearGradient id="rightBlade" x1="0" y1="0" x2="0.9" y2="1">
       <stop offset="0" stop-color="#55D6FF"/>
-      <stop offset="0.5" stop-color="#1677FF"/>
-      <stop offset="1" stop-color="#0B2345"/>
+      <stop offset="0.45" stop-color="#1677FF"/>
+      <stop offset="1" stop-color="#0A2E6E"/>
+    </linearGradient>
+    <linearGradient id="innerFacet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#BDEBFF"/>
+      <stop offset="0.5" stop-color="#38B6FF"/>
+      <stop offset="1" stop-color="#0E48A8"/>
     </linearGradient>
   </defs>
-  <circle cx="64" cy="64" r="56" fill="#071426" stroke="#55D6FF" stroke-opacity="0.55" stroke-width="2.5"/>
-  <path d="M60 100 L90 48 L114 100 Z" fill="#1677FF" opacity="0.65"/>
-  <path d="M16 100 L54 28 L66 64 L50 78 L56 100 Z" fill="url(#symLit)"/>
-  <path d="M54 28 L96 100 L56 100 L50 78 L66 64 Z" fill="url(#symShade)"/>
-  <circle cx="88" cy="36" r="7" fill="#F4F9FF"/>
+  <circle cx="128" cy="116" r="112" fill="url(#glow)"/>
+  <polygon points="128,32 34,206 84,206 128,118 146,150 168,112" fill="url(#leftBlade)"/>
+  <polygon points="128,118 100,170 142,170 164,206 186,206 146,136" fill="url(#innerFacet)"/>
+  <polygon points="128,32 168,112 146,150 178,206 222,206" fill="url(#rightBlade)"/>
+  <polyline points="58,162 128,32 198,162" fill="none" stroke="#F4F9FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.88"/>
 </svg>

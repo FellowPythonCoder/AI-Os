@@ -3,16 +3,24 @@
 """
 aura-quicksettings — AURA OS Liquid Glass Quick Settings & Control Center.
 
-A floating translucent blue-glass panel anchored near the top-right menu bar
-providing instant controls for:
-- Connectivity (NetworkManager status & connection editor)
-- Appearance (Dark / Light mode)
-- Liquid Glass intensity (Full Glass / Frosted / Performance mode)
-- Do Not Disturb (xfce4-notifyd)
-- Audio volume slider & mute (PipeWire / PulseAudio pactl)
-- Display brightness slider (xrandr software gamma/brightness for UTM + backlight)
-- Quick actions: Lock Screen, Screenshot, System Settings, Power/Session dialog
+Floating dark-blue glass control panel anchored near the top-right bar providing
+real Linux system controls:
+- Wi-Fi / Network toggle & status (nmcli / socket check)
+- Bluetooth toggle & hardware detection (bluetoothctl / rfkill)
+- Volume slider & Mute toggle (PipeWire / PulseAudio pactl)
+- Display brightness slider (xrandr / sysfs backlight)
+- Dark Mode / Theme toggle (aura theme)
+- Night Light / Eye Comfort toggle (xrandr gamma temperature filter)
+- Do Not Disturb toggle (xfce4-notifyd)
+- Battery / Power Profile selector (powerprofilesctl / AURA performance mode)
+- Screen Recording (ffmpeg x11grab) & Screenshot (xfce4-screenshooter)
+- VPN status (tun/wg/nmcli active VPN detection)
+- Firewall status (UFW / gufw launcher)
+- Recent Notifications list
+- System Settings, Kali Security Center, Lock, Restart, and Shutdown actions
 """
+import argparse
+import glob
 import json
 import os
 import re
@@ -23,6 +31,7 @@ import sys
 CONFIG_FILE = os.path.expanduser(
     os.environ.get("AURA_CONFIG_FILE", "~/.config/aura/config.json")
 )
+REC_PID_FILE = "/tmp/aura-screenrec.pid"
 
 
 def load_config():
@@ -30,8 +39,10 @@ def load_config():
         "theme_mode": "dark",
         "accent": "ocean",
         "glass_preset": "glass",
-        "glass_opacity": 0.78,
+        "glass_opacity": 0.82,
         "performance_mode": False,
+        "night_light": False,
+        "power_profile": "balanced",
     }
     try:
         with open(CONFIG_FILE, encoding="utf-8") as fh:
@@ -41,11 +52,21 @@ def load_config():
     return cfg
 
 
+def save_config(cfg):
+    try:
+        os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+    except OSError:
+        pass
+
+
 def net_status() -> str:
     if shutil.which("nmcli"):
         r = subprocess.run(
             ["nmcli", "-t", "-f", "TYPE,STATE,CONNECTION", "dev"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         for line in r.stdout.splitlines():
             parts = line.split(":")
@@ -53,17 +74,92 @@ def net_status() -> str:
                 return parts[2] or parts[0]
     try:
         import socket
+
         socket.create_connection(("1.1.1.1", 53), timeout=1.0).close()
-        return "Connected (UTM NAT)"
+        return "Connected (NAT)"
     except OSError:
         return "Offline"
+
+
+def bluetooth_status() -> str:
+    if not glob.glob("/sys/class/bluetooth/hci*"):
+        return "No Adapter (VM)"
+    if shutil.which("bluetoothctl"):
+        r = subprocess.run(
+            ["bluetoothctl", "show"], capture_output=True, text=True, timeout=2
+        )
+        if "Powered: yes" in r.stdout:
+            return "Powered On"
+        return "Powered Off"
+    return "Available"
+
+
+def toggle_bluetooth() -> str:
+    st = bluetooth_status()
+    if st == "No Adapter (VM)":
+        return st
+    if shutil.which("bluetoothctl"):
+        target = "off" if st == "Powered On" else "on"
+        subprocess.run(
+            ["bluetoothctl", "power", target],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    return bluetooth_status()
+
+
+def vpn_status() -> str:
+    for prefix in ("tun", "tap", "wg", "tailscale", "proton"):
+        if glob.glob(f"/sys/class/net/{prefix}*"):
+            return f"Active ({glob.glob(f'/sys/class/net/{prefix}*')[0].split('/')[-1]})"
+    if shutil.which("nmcli"):
+        r = subprocess.run(
+            ["nmcli", "-t", "-f", "TYPE,NAME", "con", "show", "--active"],
+            capture_output=True,
+            text=True,
+        )
+        for line in r.stdout.splitlines():
+            if line.startswith("vpn:") or line.startswith("wireguard:"):
+                return f"Active ({line.split(':', 1)[1]})"
+    return "Disconnected"
+
+
+def firewall_status() -> str:
+    if shutil.which("systemctl"):
+        r = subprocess.run(
+            ["systemctl", "is-active", "ufw"], capture_output=True, text=True
+        )
+        if r.stdout.strip() == "active":
+            return "Active (UFW)"
+    if os.path.isfile("/etc/ufw/ufw.conf"):
+        try:
+            txt = open("/etc/ufw/ufw.conf", encoding="utf-8").read()
+            if "ENABLED=yes" in txt:
+                return "Enabled (UFW)"
+        except OSError:
+            pass
+    return "Inactive"
+
+
+def battery_or_power_status() -> str:
+    bats = glob.glob("/sys/class/power_supply/BAT*")
+    if bats:
+        try:
+            cap = open(os.path.join(bats[0], "capacity")).read().strip()
+            st = open(os.path.join(bats[0], "status")).read().strip()
+            return f"{cap}% ({st})"
+        except OSError:
+            pass
+    return "AC / Host Power"
 
 
 def current_volume() -> int:
     if shutil.which("pactl"):
         r = subprocess.run(
             ["pactl", "get-sink-volume", "@DEFAULT_SINK@"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         m = re.search(r"(\d+)%", r.stdout)
         if m:
@@ -71,12 +167,34 @@ def current_volume() -> int:
     return 75
 
 
+def is_muted() -> bool:
+    if shutil.which("pactl"):
+        r = subprocess.run(
+            ["pactl", "get-sink-mute", "@DEFAULT_SINK@"],
+            capture_output=True,
+            text=True,
+        )
+        return "yes" in r.stdout.lower()
+    return False
+
+
 def set_volume(pct: int):
     if shutil.which("pactl"):
         subprocess.Popen(
             ["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{int(pct)}%"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
+
+
+def toggle_mute() -> bool:
+    if shutil.which("pactl"):
+        subprocess.run(
+            ["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    return is_muted()
 
 
 def active_xrandr_output() -> str:
@@ -95,7 +213,19 @@ def set_brightness(val: float):
         clamped = max(0.35, min(1.0, float(val)))
         subprocess.Popen(
             ["xrandr", "--output", out, "--brightness", f"{clamped:.2f}"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+def set_night_light(enabled: bool):
+    out = active_xrandr_output()
+    if out:
+        gamma = "1.00:0.88:0.76" if enabled else "1.00:1.00:1.00"
+        subprocess.Popen(
+            ["xrandr", "--output", out, "--gamma", gamma],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
 
@@ -104,7 +234,8 @@ def get_dnd() -> bool:
         return False
     r = subprocess.run(
         ["xfconf-query", "-c", "xfce4-notifyd", "-p", "/do-not-disturb"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return r.stdout.strip().lower() == "true"
 
@@ -113,34 +244,95 @@ def set_dnd(val: bool):
     if shutil.which("xfconf-query"):
         subprocess.Popen(
             [
-                "xfconf-query", "-c", "xfce4-notifyd", "-p", "/do-not-disturb",
-                "-t", "bool", "-s", "true" if val else "false", "--create",
+                "xfconf-query",
+                "-c",
+                "xfce4-notifyd",
+                "-p",
+                "/do-not-disturb",
+                "-t",
+                "bool",
+                "-s",
+                "true" if val else "false",
+                "--create",
             ],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
+
+
+def toggle_screen_recording() -> str:
+    if os.path.isfile(REC_PID_FILE):
+        try:
+            pid = int(open(REC_PID_FILE).read().strip())
+            os.kill(pid, 2)  # SIGINT so ffmpeg finalizes MP4 cleanly
+        except Exception:
+            pass
+        try:
+            os.remove(REC_PID_FILE)
+        except OSError:
+            pass
+        return "Saved to ~/Videos"
+    if not shutil.which("ffmpeg") or not os.environ.get("DISPLAY"):
+        return "ffmpeg / X11 required"
+    out_dir = os.path.expanduser("~/Videos")
+    os.makedirs(out_dir, exist_ok=True)
+    import time
+
+    out_file = os.path.join(out_dir, f"aura-recording-{int(time.time())}.mp4")
+    proc = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "x11grab",
+            "-framerate",
+            "30",
+            "-i",
+            os.environ.get("DISPLAY", ":0.0"),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            out_file,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    with open(REC_PID_FILE, "w", encoding="utf-8") as fh:
+        fh.write(str(proc.pid))
+    return "Recording… (click to stop)"
 
 
 def run_ui():
     import gi
+
     gi.require_version("Gtk", "3.0")
-    from gi.repository import Gtk, Gdk  # noqa: E402
+    from gi.repository import Gdk, Gtk  # noqa: E402
 
     cfg = load_config()
 
     CSS = b"""
     window.aura-qs-win {
-      background-color: rgba(11, 35, 69, 0.90);
-      border: 1px solid rgba(85, 214, 255, 0.45);
-      border-radius: 18px;
+      background-color: rgba(5, 13, 26, 0.94);
+      border: 1px solid rgba(85, 214, 255, 0.42);
+      border-radius: 20px;
       color: #F4F9FF;
+      font-family: "Rajdhani", "Inter", sans-serif;
     }
     .aura-qs-header {
+      font-family: "Orbitron", "Rajdhani", sans-serif;
       font-weight: 700;
       font-size: 12pt;
-      color: #F4F9FF;
+      color: #55D6FF;
+      letter-spacing: 0.8px;
     }
-    .aura-qs-sub {
-      font-size: 9pt;
+    .aura-qs-status-strip {
+      background-color: rgba(9, 25, 48, 0.82);
+      border: 1px solid rgba(85, 214, 255, 0.22);
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 9.5pt;
       color: #BDEBFF;
     }
     """
@@ -152,24 +344,28 @@ def run_ui():
 
     win = Gtk.Window(title="AURA Quick Settings")
     win.get_style_context().add_class("aura-qs-win")
-    win.set_default_size(360, 410)
+    win.set_default_size(410, 560)
     win.set_resizable(False)
     win.set_keep_above(True)
     win.set_type_hint(Gdk.WindowTypeHint.DIALOG)
-    # Position near top-right menu bar
     screen = Gdk.Screen.get_default()
     if screen:
-        win.move(max(0, screen.get_width() - 380), 40)
+        win.move(max(0, screen.get_width() - 430), 38)
 
-    win.connect("key-press-event", lambda w, e: Gtk.main_quit() if e.keyval == Gdk.KEY_Escape else False)
+    win.connect(
+        "key-press-event",
+        lambda _w, e: Gtk.main_quit() if e.keyval == Gdk.KEY_Escape else False,
+    )
 
-    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-    root.set_border_width(18)
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    root.set_border_width(16)
     win.add(root)
 
     # Top title row
     top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    title = Gtk.Label(label="🏔  AURA Quick Settings")
+    logo_img = Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.LARGE_TOOLBAR)
+    top.pack_start(logo_img, False, False, 0)
+    title = Gtk.Label(label="AURA CONTROL CENTER")
     title.get_style_context().add_class("aura-qs-header")
     top.pack_start(title, False, False, 0)
     top.pack_start(Gtk.Box(), True, True, 0)
@@ -179,56 +375,79 @@ def run_ui():
     top.pack_start(close_b, False, False, 0)
     root.pack_start(top, False, False, 0)
 
-    # 2x2 Quick Toggle Tiles
-    grid = Gtk.Grid(column_spacing=10, row_spacing=10, column_homogeneous=True)
+    # 2x4 Quick Toggle Tiles Grid
+    grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
     root.pack_start(grid, False, False, 0)
 
-    # 1. Network tile
+    # 1. Wi-Fi / Network tile
     net_btn = Gtk.Button(label=f"🌐  Network\n{net_status()}")
     net_btn.get_style_context().add_class("aura-quick-tile-active")
     net_btn.connect(
         "clicked",
         lambda *_: subprocess.Popen(
-            ["nm-connection-editor"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            ["nm-connection-editor"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         ),
     )
     grid.attach(net_btn, 0, 0, 1, 1)
 
-    # 2. Dark / Light mode tile
+    # 2. Bluetooth tile
+    bt_btn = Gtk.Button(label=f"ᛒ  Bluetooth\n{bluetooth_status()}")
+    bt_btn.get_style_context().add_class("aura-quick-tile")
+
+    def _on_bt(_b):
+        st = toggle_bluetooth()
+        bt_btn.set_label(f"ᛒ  Bluetooth\n{st}")
+
+    bt_btn.connect("clicked", _on_bt)
+    grid.attach(bt_btn, 1, 0, 1, 1)
+
+    # 3. Dark / Light Theme tile
     mode_state = {"mode": cfg.get("theme_mode", "dark")}
     mode_btn = Gtk.Button(
-        label=f"🌙  Appearance\n{'Dark Glass' if mode_state['mode'] == 'dark' else 'Light Glass'}"
+        label=f"🌙  Dark Mode\n{'AuraDark' if mode_state['mode'] == 'dark' else 'AuraLight'}"
     )
     mode_btn.get_style_context().add_class("aura-quick-tile-active")
 
     def _toggle_mode(_b):
         mode_state["mode"] = "light" if mode_state["mode"] == "dark" else "dark"
+        cfg["theme_mode"] = mode_state["mode"]
+        save_config(cfg)
         mode_btn.set_label(
-            f"🌙  Appearance\n{'Dark Glass' if mode_state['mode'] == 'dark' else 'Light Glass'}"
+            f"🌙  Dark Mode\n{'AuraDark' if mode_state['mode'] == 'dark' else 'AuraLight'}"
         )
         subprocess.Popen(["aura", "theme", mode_state["mode"]])
 
     mode_btn.connect("clicked", _toggle_mode)
-    grid.attach(mode_btn, 1, 0, 1, 1)
+    grid.attach(mode_btn, 0, 1, 1, 1)
 
-    # 3. Liquid Glass preset tile
-    presets = ["glass", "frosted", "performance"]
-    preset_state = {"idx": presets.index(cfg.get("glass_preset", "glass")) if cfg.get("glass_preset") in presets else 0}
-    glass_btn = Gtk.Button(label=f"✨  Liquid Glass\n{presets[preset_state['idx']].capitalize()}")
-    glass_btn.get_style_context().add_class("aura-quick-tile")
+    # 4. Night Light / Eye Comfort tile
+    nl_state = {"on": bool(cfg.get("night_light", False))}
+    nl_btn = Gtk.Button(
+        label=f"👁  Night Light\n{'Warm 4200K' if nl_state['on'] else 'Off (6500K)'}"
+    )
+    nl_btn.get_style_context().add_class(
+        "aura-quick-tile-active" if nl_state["on"] else "aura-quick-tile"
+    )
 
-    def _cycle_glass(_b):
-        preset_state["idx"] = (preset_state["idx"] + 1) % len(presets)
-        p = presets[preset_state["idx"]]
-        glass_btn.set_label(f"✨  Liquid Glass\n{p.capitalize()}")
-        subprocess.Popen(["aura", "glass", p])
+    def _toggle_nl(_b):
+        nl_state["on"] = not nl_state["on"]
+        cfg["night_light"] = nl_state["on"]
+        save_config(cfg)
+        set_night_light(nl_state["on"])
+        nl_btn.set_label(
+            f"👁  Night Light\n{'Warm 4200K' if nl_state['on'] else 'Off (6500K)'}"
+        )
 
-    glass_btn.connect("clicked", _cycle_glass)
-    grid.attach(glass_btn, 0, 1, 1, 1)
+    nl_btn.connect("clicked", _toggle_nl)
+    grid.attach(nl_btn, 1, 1, 1, 1)
 
-    # 4. Do Not Disturb tile
+    # 5. Do Not Disturb tile
     dnd_state = {"on": get_dnd()}
-    dnd_btn = Gtk.Button(label=f"🔔  Notifications\n{'Do Not Disturb' if dnd_state['on'] else 'Active'}")
+    dnd_btn = Gtk.Button(
+        label=f"🔔  Notifications\n{'Do Not Disturb' if dnd_state['on'] else 'Alerts Active'}"
+    )
     dnd_btn.get_style_context().add_class(
         "aura-quick-tile-active" if dnd_state["on"] else "aura-quick-tile"
     )
@@ -236,17 +455,79 @@ def run_ui():
     def _toggle_dnd(_b):
         dnd_state["on"] = not dnd_state["on"]
         set_dnd(dnd_state["on"])
-        dnd_btn.set_label(f"🔔  Notifications\n{'Do Not Disturb' if dnd_state['on'] else 'Active'}")
+        dnd_btn.set_label(
+            f"🔔  Notifications\n{'Do Not Disturb' if dnd_state['on'] else 'Alerts Active'}"
+        )
 
     dnd_btn.connect("clicked", _toggle_dnd)
-    grid.attach(dnd_btn, 1, 1, 1, 1)
+    grid.attach(dnd_btn, 0, 2, 1, 1)
 
-    # Sound Volume Slider
-    vol_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-    vol_lbl = Gtk.Label(label="🔊  Sound Volume")
-    vol_lbl.set_xalign(0)
+    # 6. Power Profile / Battery tile
+    profiles = ["balanced", "performance", "power-saver"]
+    prof_state = {
+        "idx": profiles.index(cfg.get("power_profile", "balanced"))
+        if cfg.get("power_profile") in profiles
+        else 0
+    }
+    pwr_btn = Gtk.Button(
+        label=f"⚡  Power Profile\n{profiles[prof_state['idx']].capitalize()}"
+    )
+    pwr_btn.get_style_context().add_class("aura-quick-tile")
+
+    def _cycle_power(_b):
+        prof_state["idx"] = (prof_state["idx"] + 1) % len(profiles)
+        p = profiles[prof_state["idx"]]
+        cfg["power_profile"] = p
+        save_config(cfg)
+        if shutil.which("powerprofilesctl"):
+            subprocess.Popen(["powerprofilesctl", "set", p])
+        pwr_btn.set_label(f"⚡  Power Profile\n{p.capitalize()}")
+
+    pwr_btn.connect("clicked", _cycle_power)
+    grid.attach(pwr_btn, 1, 2, 1, 1)
+
+    # 7. Firewall Status tile
+    fw_btn = Gtk.Button(label=f"🛡  Firewall\n{firewall_status()}")
+    fw_btn.get_style_context().add_class("aura-quick-tile")
+    fw_btn.connect(
+        "clicked",
+        lambda *_: subprocess.Popen(
+            ["gufw"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ),
+    )
+    grid.attach(fw_btn, 0, 3, 1, 1)
+
+    # 8. Screen Record tile
+    rec_btn = Gtk.Button(
+        label=f"⏺  Screen Record\n{'Recording…' if os.path.isfile(REC_PID_FILE) else 'Ready'}"
+    )
+    rec_btn.get_style_context().add_class("aura-quick-tile")
+
+    def _on_rec(_b):
+        st = toggle_screen_recording()
+        rec_btn.set_label(f"⏺  Screen Record\n{st}")
+
+    rec_btn.connect("clicked", _on_rec)
+    grid.attach(rec_btn, 1, 3, 1, 1)
+
+    # VPN & Power status strip
+    status_strip = Gtk.Label(
+        label=f"🔒 VPN: {vpn_status()}   ·   🔋 Power: {battery_or_power_status()}",
+        xalign=0,
+    )
+    status_strip.get_style_context().add_class("aura-qs-status-strip")
+    root.pack_start(status_strip, False, False, 0)
+
+    # Sound Volume Slider + Mute toggle
+    vol_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+    vol_lbl = Gtk.Label(label="🔊  Audio Output Volume", xalign=0)
     vol_box.pack_start(vol_lbl, False, False, 0)
-    vol_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    vol_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+    mute_btn = Gtk.Button(label="🔇" if is_muted() else "🔊")
+    mute_btn.connect(
+        "clicked", lambda b: b.set_label("🔇" if toggle_mute() else "🔊")
+    )
+    vol_row.pack_start(mute_btn, False, False, 0)
     vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 2)
     vol_scale.set_value(current_volume())
     vol_scale.set_draw_value(True)
@@ -264,9 +545,8 @@ def run_ui():
     root.pack_start(vol_box, False, False, 0)
 
     # Display Brightness Slider
-    br_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-    br_lbl = Gtk.Label(label="☀️  Display Brightness")
-    br_lbl.set_xalign(0)
+    br_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+    br_lbl = Gtk.Label(label="☀️  Display Brightness", xalign=0)
     br_box.pack_start(br_lbl, False, False, 0)
     br_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 40, 100, 5)
     br_scale.set_value(100)
@@ -274,12 +554,13 @@ def run_ui():
     br_box.pack_start(br_scale, False, False, 0)
     root.pack_start(br_box, False, False, 0)
 
-    # Bottom Action Bar
-    actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    # Bottom Action Bar: Lock, Screenshot, Kali Security, Settings, Restart, Power
+    actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
     actions.set_homogeneous(True)
     for label, cmd in (
         ("🔒 Lock", ["aura-lock"]),
         ("📸 Shot", ["xfce4-screenshooter"]),
+        ("🛡 Kali", ["aura-security"]),
         ("⚙ Settings", ["aura-settings"]),
         ("⏻ Power", ["xfce4-session-logout"]),
     ):
@@ -287,7 +568,9 @@ def run_ui():
         b.connect(
             "clicked",
             lambda _b, c=cmd: (
-                subprocess.Popen(c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL),
+                subprocess.Popen(
+                    c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
                 Gtk.main_quit(),
             ),
         )
@@ -301,8 +584,22 @@ def run_ui():
 
 
 def main():
-    if "--dry-run" in sys.argv:
+    p = argparse.ArgumentParser(description="AURA Quick Settings Control Center")
+    p.add_argument("--dry-run", action="store_true", help="Dry run for tests")
+    p.add_argument("--status", action="store_true", help="Print live system quick-settings status")
+    args = p.parse_args()
+
+    if args.dry_run:
         print("[dry-run] aura-quicksettings")
+        return 0
+    if args.status:
+        print(f"Network:       {net_status()}")
+        print(f"Bluetooth:     {bluetooth_status()}")
+        print(f"VPN:           {vpn_status()}")
+        print(f"Firewall:      {firewall_status()}")
+        print(f"Power:         {battery_or_power_status()}")
+        print(f"Volume:        {current_volume()}% ({'muted' if is_muted() else 'unmuted'})")
+        print(f"DoNotDisturb:  {'on' if get_dnd() else 'off'}")
         return 0
     if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
         print("aura-quicksettings: no graphical display found.", file=sys.stderr)

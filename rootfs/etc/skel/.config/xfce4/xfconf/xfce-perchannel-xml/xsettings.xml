@@ -9,7 +9,7 @@
     <property name="EnableInputFeedbackSounds" type="bool" value="false"/>
   </property>
   <property name="Gtk" type="empty">
-    <property name="FontName" type="string" value="Inter 11"/>
+    <property name="FontName" type="string" value="Rajdhani Medium 11"/>
     <property name="MonospaceFontName" type="string" value="JetBrains Mono 10"/>
     <property name="CursorThemeName" type="string" value="AuraCursor"/>
     <property name="CursorThemeSize" type="int" value="24"/>

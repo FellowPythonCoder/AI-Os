@@ -1,0 +1,545 @@
+#!/usr/bin/env python3
+"""
+Aura Application Launcher (aura-launcher)
+Modern dark-blue glass application launcher with search bar, category sidebar
+(Favorites, All Applications, Internet, Development, System, Multimedia,
+Utilities, Security and Kali Tools), responsive icon grid, keyboard navigation,
+recent/favorites tracking, and installed-vs-available state detection.
+"""
+import argparse
+import configparser
+import glob
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+STATE_PATH = os.path.expanduser("~/.config/aura/launcher-state.json")
+KALI_CATALOG_PATHS = [
+    "/usr/share/aura/kali-tools.json",
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "share", "aura", "kali-tools.json")
+    ),
+]
+DESKTOP_DIRS = [
+    os.path.expanduser("~/.local/share/applications"),
+    "/usr/local/share/applications",
+    "/usr/share/applications",
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "share", "applications")
+    ),
+]
+
+CATEGORIES = [
+    ("favorites", "Favorites", "aura-launcher"),
+    ("all", "All Applications", "aura-appbar"),
+    ("internet", "Internet", "aura-browser"),
+    ("development", "Development", "aura-studio"),
+    ("system", "System", "aura-settings"),
+    ("multimedia", "Multimedia", "aura-media"),
+    ("utilities", "Utilities", "aura-notes"),
+    ("security", "Security and Kali Tools", "aura-security"),
+]
+
+
+def load_state():
+    default = {
+        "favorites": [
+            "celestia-terminal",
+            "aura-files",
+            "aura-browser",
+            "aura-security",
+            "aura-settings",
+            "aura-monitor",
+            "nmap",
+            "wireshark",
+        ],
+        "recent": [],
+    }
+    try:
+        if os.path.isfile(STATE_PATH):
+            with open(STATE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    default.update(data)
+    except Exception:
+        pass
+    return default
+
+
+def save_state(state):
+    try:
+        os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+        with open(STATE_PATH, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
+
+
+def map_desktop_category(cats_raw, name_raw=""):
+    cats = cats_raw.lower()
+    name = name_raw.lower()
+    if any(k in cats or k in name for k in ("security", "kali", "pentest", "nmap", "wireshark", "audit")):
+        return "security"
+    if any(k in cats for k in ("network", "webbrowser", "email", "chat", "instantmessaging", "filetransfer")):
+        return "internet"
+    if any(k in cats for k in ("development", "ide", "debugger", "texteditor", "programming")):
+        return "development"
+    if any(k in cats for k in ("audiovideo", "audio", "video", "music", "player", "recorder", "graphics")):
+        return "multimedia"
+    if any(k in cats for k in ("system", "settings", "monitor", "packagemanager", "terminalemulator")):
+        return "system"
+    return "utilities"
+
+
+def clean_exec(exec_cmd):
+    return re.sub(r"\s+%[fFuUdDnNickvm]", "", exec_cmd).strip()
+
+
+def is_binary_available(cmd_str):
+    if not cmd_str:
+        return False
+    try:
+        parts = shlex.split(cmd_str)
+    except ValueError:
+        parts = cmd_str.split()
+    if not parts:
+        return False
+    prog = parts[0]
+    if os.path.isabs(prog):
+        return os.path.isfile(prog) and os.access(prog, os.X_OK)
+    if shutil.which(prog):
+        return True
+    for extra in ("/usr/sbin", "/sbin", "/usr/local/bin", os.path.dirname(__file__)):
+        cand = os.path.join(extra, prog)
+        if os.path.isfile(cand):
+            return True
+    return False
+
+
+def discover_applications():
+    """Collect deduplicated applications from .desktop files and the Kali security catalog."""
+    apps = []
+    seen_keys = set()
+
+    for ddir in DESKTOP_DIRS:
+        if not os.path.isdir(ddir):
+            continue
+        for dpath in sorted(glob.glob(os.path.join(ddir, "*.desktop"))):
+            cp = configparser.ConfigParser(interpolation=None)
+            try:
+                cp.read(dpath, encoding="utf-8")
+            except Exception:
+                continue
+            if "Desktop Entry" not in cp:
+                continue
+            sec = cp["Desktop Entry"]
+            if sec.get("NoDisplay", "false").lower() == "true":
+                continue
+            if sec.get("Hidden", "false").lower() == "true":
+                continue
+            name = sec.get("Name", "").strip()
+            exec_raw = clean_exec(sec.get("Exec", "").strip())
+            if not name or not exec_raw:
+                continue
+            app_id = os.path.splitext(os.path.basename(dpath))[0].lower()
+            dedup_key = name.lower()
+            bin_tok = exec_raw.split()[0].lower() if exec_raw.split() else ""
+            if app_id in seen_keys or dedup_key in seen_keys or (bin_tok and bin_tok in seen_keys):
+                continue
+            seen_keys.add(app_id)
+            seen_keys.add(dedup_key)
+            if bin_tok:
+                seen_keys.add(bin_tok)
+
+            icon = sec.get("Icon", "application-x-executable").strip()
+            comment = sec.get("Comment", sec.get("GenericName", "System Application")).strip()
+            cat = map_desktop_category(sec.get("Categories", ""), name)
+            installed = is_binary_available(exec_raw)
+
+            apps.append(
+                {
+                    "id": app_id,
+                    "name": name,
+                    "desc": comment,
+                    "icon": icon,
+                    "category": cat,
+                    "exec": exec_raw,
+                    "installed": installed,
+                    "is_kali_tool": (cat == "security"),
+                }
+            )
+
+    # Merge Kali Security Catalog entries without duplicates
+    for kpath in KALI_CATALOG_PATHS:
+        if os.path.isfile(kpath):
+            try:
+                catalog = json.load(open(kpath, "r", encoding="utf-8"))
+                for cat in catalog.get("categories", []):
+                    for t in cat.get("tools", []):
+                        tid = t["id"].lower()
+                        tname = t["name"].lower()
+                        if tid in seen_keys or tname in seen_keys:
+                            continue
+                        seen_keys.add(tid)
+                        seen_keys.add(tname)
+                        bin_name = t.get("bin", tid)
+                        inst = is_binary_available(bin_name)
+                        apps.append(
+                            {
+                                "id": tid,
+                                "name": t["name"],
+                                "desc": t.get("desc", ""),
+                                "icon": t.get("icon", "aura-security"),
+                                "category": "security",
+                                "exec": f"aura-security --launch {tid}" if inst else f"aura-security --install {tid}",
+                                "installed": inst,
+                                "is_kali_tool": True,
+                                "apt": t.get("apt", tid),
+                            }
+                        )
+            except Exception:
+                pass
+            break
+
+    return sorted(apps, key=lambda a: (not a["installed"], a["name"].lower()))
+
+
+CSS = b"""
+window {
+    background-color: rgba(5, 13, 26, 0.96);
+    color: #ECF4FF;
+    font-family: "Rajdhani", "Inter", "Noto Sans", sans-serif;
+}
+.launcher-shell {
+    background-image: linear-gradient(155deg, rgba(7, 20, 38, 0.96), rgba(4, 10, 20, 0.98));
+    border: 1px solid rgba(85, 214, 255, 0.25);
+    border-radius: 20px;
+}
+.launcher-top {
+    background-color: rgba(9, 25, 48, 0.85);
+    border-bottom: 1px solid rgba(85, 214, 255, 0.16);
+    padding: 16px 22px;
+}
+.launcher-brand {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    color: #55D6FF;
+}
+.launcher-search {
+    background-color: rgba(13, 33, 62, 0.92);
+    color: #ECF4FF;
+    border: 1px solid rgba(85, 214, 255, 0.34);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+.launcher-sidebar {
+    background-color: rgba(6, 16, 31, 0.90);
+    border-right: 1px solid rgba(85, 214, 255, 0.14);
+    padding: 12px 8px;
+}
+.app-tile {
+    background-color: rgba(11, 28, 52, 0.78);
+    border: 1px solid rgba(85, 214, 255, 0.15);
+    border-radius: 14px;
+    padding: 12px;
+}
+.app-tile:hover {
+    background-color: rgba(22, 119, 255, 0.22);
+    border-color: rgba(85, 214, 255, 0.55);
+}
+.app-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #F0F7FF;
+}
+.app-desc {
+    font-size: 11.5px;
+    color: #8EA8C8;
+}
+.state-installed {
+    color: #38E8B8;
+    font-size: 10.5px;
+    font-weight: 700;
+}
+.state-available {
+    color: #55D6FF;
+    font-size: 10.5px;
+    font-weight: 700;
+}
+"""
+
+
+def run_gui(initial_category="all"):
+    import gi
+
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gdk, GLib, Gtk, Pango
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(CSS)
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
+
+    class LauncherWindow(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="AURA OS Application Launcher")
+            self.set_default_size(1060, 680)
+            self.set_position(Gtk.WindowPosition.CENTER)
+            self.set_icon_name("aura-launcher")
+
+            self.state = load_state()
+            self.apps = discover_applications()
+            self.active_category = initial_category
+            self.query = ""
+
+            self.connect("key-press-event", self.on_key_press)
+
+            outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            outer.get_style_context().add_class("launcher-shell")
+            self.add(outer)
+
+            # Top Search Bar
+            top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+            top.get_style_context().add_class("launcher-top")
+
+            logo = Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.LARGE_TOOLBAR)
+            top.pack_start(logo, False, False, 0)
+
+            brand = Gtk.Label(label="AURA LAUNCHER", xalign=0)
+            brand.get_style_context().add_class("launcher-brand")
+            top.pack_start(brand, False, False, 0)
+
+            self.search = Gtk.SearchEntry()
+            self.search.set_placeholder_text("Search applications, utilities, and Kali security tools...")
+            self.search.set_size_request(440, -1)
+            self.search.get_style_context().add_class("launcher-search")
+            self.search.connect("search-changed", self.on_search_changed)
+            self.search.connect("activate", self.on_search_activate)
+            top.pack_start(self.search, True, False, 0)
+
+            sec_btn = Gtk.Button(label="Kali Security Center")
+            sec_btn.connect("clicked", lambda _b: self.launch_command("aura-security", "aura-security"))
+            top.pack_end(sec_btn, False, False, 0)
+
+            outer.pack_start(top, False, False, 0)
+
+            # Main split layout
+            body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            outer.pack_start(body, True, True, 0)
+
+            # Category sidebar
+            self.cat_list = Gtk.ListBox()
+            self.cat_list.set_size_request(230, -1)
+            self.cat_list.get_style_context().add_class("launcher-sidebar")
+            self.cat_list.connect("row-selected", self.on_cat_selected)
+
+            selected_idx = 1
+            for idx, (cid, cname, cicon) in enumerate(CATEGORIES):
+                if cid == self.active_category:
+                    selected_idx = idx
+                row = Gtk.ListBoxRow()
+                row.cat_id = cid
+                hb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                hb.set_margin_top(8)
+                hb.set_margin_bottom(8)
+                hb.set_margin_start(10)
+                hb.set_margin_end(10)
+                hb.pack_start(Gtk.Image.new_from_icon_name(cicon, Gtk.IconSize.MENU), False, False, 0)
+                hb.pack_start(Gtk.Label(label=cname, xalign=0), True, True, 0)
+                row.add(hb)
+                self.cat_list.add(row)
+
+            body.pack_start(self.cat_list, False, False, 0)
+
+            # Right Grid + Recent bar
+            right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            right.set_margin_top(14)
+            right.set_margin_bottom(14)
+            right.set_margin_start(16)
+            right.set_margin_end(16)
+            body.pack_start(right, True, True, 0)
+
+            self.header_lbl = Gtk.Label(label="All Applications", xalign=0)
+            self.header_lbl.get_style_context().add_class("launcher-brand")
+            right.pack_start(self.header_lbl, False, False, 0)
+
+            scroll = Gtk.ScrolledWindow()
+            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            self.flow = Gtk.FlowBox()
+            self.flow.set_valign(Gtk.Align.START)
+            self.flow.set_max_children_per_line(4)
+            self.flow.set_min_children_per_line(2)
+            self.flow.set_selection_mode(Gtk.SelectionMode.SINGLE)
+            self.flow.set_homogeneous(True)
+            self.flow.set_column_spacing(12)
+            self.flow.set_row_spacing(12)
+            self.flow.connect("child-activated", self.on_child_activated)
+            scroll.add(self.flow)
+            right.pack_start(scroll, True, True, 0)
+
+            self.cat_list.show_all()
+            self.cat_list.select_row(self.cat_list.get_row_at_index(selected_idx))
+            self.search.grab_focus()
+
+        def on_key_press(self, _win, event):
+            if event.keyval == Gdk.KEY_Escape:
+                Gtk.main_quit()
+                return True
+            return False
+
+        def on_cat_selected(self, _lb, row):
+            if row is not None:
+                self.active_category = getattr(row, "cat_id", "all")
+                for cid, cname, _ in CATEGORIES:
+                    if cid == self.active_category:
+                        self.header_lbl.set_text(cname)
+                self.populate_grid()
+
+        def on_search_changed(self, entry):
+            self.query = entry.get_text().strip().lower()
+            self.populate_grid()
+
+        def on_search_activate(self, _entry):
+            first = self.flow.get_child_at_index(0)
+            if first is not None and hasattr(first, "app_data"):
+                self.activate_app(first.app_data)
+
+        def on_child_activated(self, _flow, child):
+            if hasattr(child, "app_data"):
+                self.activate_app(child.app_data)
+
+        def populate_grid(self):
+            for child in self.flow.get_children():
+                self.flow.remove(child)
+
+            favs = set(self.state.get("favorites", []))
+            shown = 0
+            for app in self.apps:
+                if self.active_category == "favorites":
+                    if app["id"] not in favs:
+                        continue
+                elif self.active_category != "all":
+                    if app["category"] != self.active_category:
+                        continue
+
+                if self.query:
+                    hay = f"{app['name']} {app['id']} {app['desc']} {app['category']}".lower()
+                    if self.query not in hay:
+                        continue
+
+                child = self.make_app_tile(app, app["id"] in favs)
+                self.flow.add(child)
+                shown += 1
+
+            self.flow.show_all()
+
+        def make_app_tile(self, app, is_fav):
+            fb_child = Gtk.FlowBoxChild()
+            fb_child.app_data = app
+
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            card.get_style_context().add_class("app-tile")
+            card.set_size_request(195, 130)
+
+            top_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            img = Gtk.Image.new_from_icon_name(app["icon"], Gtk.IconSize.DND)
+            top_row.pack_start(img, False, False, 0)
+
+            state_lbl = Gtk.Label(
+                label=("★ " if is_fav else "") + ("● Installed" if app["installed"] else "○ Available"),
+                xalign=1,
+            )
+            state_lbl.get_style_context().add_class(
+                "state-installed" if app["installed"] else "state-available"
+            )
+            top_row.pack_end(state_lbl, False, False, 0)
+            card.pack_start(top_row, False, False, 0)
+
+            title = Gtk.Label(label=app["name"], xalign=0)
+            title.get_style_context().add_class("app-title")
+            title.set_ellipsize(Pango.EllipsizeMode.END)
+            card.pack_start(title, False, False, 0)
+
+            desc = Gtk.Label(label=app["desc"], xalign=0)
+            desc.get_style_context().add_class("app-desc")
+            desc.set_line_wrap(True)
+            desc.set_lines(2)
+            desc.set_ellipsize(Pango.EllipsizeMode.END)
+            card.pack_start(desc, True, True, 0)
+
+            btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            launch_btn = Gtk.Button(label="Launch" if app["installed"] else "Install / Open")
+            launch_btn.connect("clicked", lambda _b, a=app: self.activate_app(a))
+            btn_row.pack_start(launch_btn, True, True, 0)
+
+            fav_btn = Gtk.Button(label="★" if is_fav else "☆")
+            fav_btn.set_tooltip_text("Toggle favorite")
+            fav_btn.connect("clicked", lambda _b, a=app: self.toggle_fav(a["id"]))
+            btn_row.pack_end(fav_btn, False, False, 0)
+
+            card.pack_end(btn_row, False, False, 0)
+            fb_child.add(card)
+            return fb_child
+
+        def toggle_fav(self, app_id):
+            favs = list(self.state.get("favorites", []))
+            if app_id in favs:
+                favs.remove(app_id)
+            else:
+                favs.append(app_id)
+            self.state["favorites"] = favs
+            save_state(self.state)
+            self.populate_grid()
+
+        def activate_app(self, app):
+            self.launch_command(app["exec"], app["id"])
+
+        def launch_command(self, cmd_str, app_id):
+            rec = [r for r in self.state.get("recent", []) if r != app_id]
+            rec.insert(0, app_id)
+            self.state["recent"] = rec[:12]
+            save_state(self.state)
+            try:
+                subprocess.Popen(cmd_str, shell=True, start_new_session=True)
+            except Exception:
+                pass
+            Gtk.main_quit()
+
+    win = LauncherWindow()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Aura Application Launcher")
+    parser.add_argument("--list", action="store_true", help="List discovered applications and categories")
+    parser.add_argument("--category", default="all", help="Initial category tab to open")
+    args = parser.parse_args()
+
+    if args.list:
+        apps = discover_applications()
+        for a in apps:
+            st = "INSTALLED" if a["installed"] else "AVAILABLE"
+            print(f"[{st:9}] {a['category']:12} | {a['name']:28} | {a['desc']}")
+        print(f"\nTotal discovered applications: {len(apps)}")
+        return 0
+
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        apps = discover_applications()
+        print(f"Aura Launcher: {len(apps)} applications indexed across {len(CATEGORIES)} categories.")
+        return 0
+
+    return run_gui(initial_category=args.category)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

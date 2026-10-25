@@ -20,7 +20,7 @@ zstyle ':completion:*' menu select
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*'
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 zstyle ':completion:*:descriptions' format '%F{cyan}── %d ──%f'
-zstyle ':completion:*:warnings' format '%F{yellow}no matches for: %d%f'
+zstyle ':completion:*:warnings' format '%F{cyan}no matches for: %d%f'
 
 # ── Colors ───────────────────────────────────────────────────────────────────
 export CLICOLOR=1
@@ -57,6 +57,10 @@ alias afetch='aura fetch'
 alias ainstall='aura install'
 alias asearch='aura search'
 alias aupdate='aura update && aura upgrade'
+alias akali='aura kali'
+alias asec='aura-security'
+alias alaunch='aura-launcher'
+alias afont='aura font'
 alias help-me='aura help'
 
 # mkcd — create a folder and step into it

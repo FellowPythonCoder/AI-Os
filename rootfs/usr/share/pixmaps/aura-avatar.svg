@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS — Default User Avatar with Geometric Mountain Crest -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="avBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#050D1A"/>
+      <stop offset="0.55" stop-color="#0B2345"/>
+      <stop offset="1" stop-color="#1677FF"/>
+    </linearGradient>
+    <linearGradient id="avBlade" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#F4F9FF"/>
+      <stop offset="0.4" stop-color="#55D6FF"/>
+      <stop offset="1" stop-color="#1677FF"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="128" r="118" fill="url(#avBg)" stroke="#55D6FF" stroke-width="5" stroke-opacity="0.78"/>
+  <circle cx="128" cy="128" r="108" fill="none" stroke="#F4F9FF" stroke-width="1.5" stroke-opacity="0.28"/>
+  <polygon points="128,54 58,182 94,182 128,118 142,142 158,114" fill="url(#avBlade)"/>
+  <polygon points="128,54 158,114 142,142 166,182 198,182" fill="#1677FF" opacity="0.88"/>
+</svg>

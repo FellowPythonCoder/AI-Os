@@ -1,9 +1,9 @@
-favorites=aura-finder.desktop,celestia-shell.desktop,aura-browser.desktop,aura-settings.desktop,aura-appcenter.desktop,aura-quicksettings.desktop,aura-text.desktop,aura-studio.desktop,aura-notes.desktop,aura-calendar.desktop,aura-monitor.desktop,aura-photos.desktop,aura-media.desktop,aura-help.desktop
+favorites=aura-launcher.desktop,aura-security.desktop,aura-finder.desktop,celestia-shell.desktop,aura-browser.desktop,aura-settings.desktop,aura-appcenter.desktop,aura-quicksettings.desktop,aura-text.desktop,aura-studio.desktop,aura-notes.desktop,aura-calendar.desktop,aura-monitor.desktop,aura-photos.desktop,aura-media.desktop,aura-help.desktop
 button-icon=aura-logo
 button-single-row=true
 show-button-icon=true
 show-button-title=true
-button-title=AURA
+button-title=AURA OS
 launcher-show-name=true
 launcher-show-description=true
 launcher-show-tooltip=true

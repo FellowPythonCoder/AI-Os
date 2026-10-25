@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- AURA OS monochrome mountain glyph — recolor via currentColor contexts / single-color use. -->
+<!-- AURA OS — Monochrome Geometric Mountain Symbol -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <g fill="#ffffff">
-    <circle cx="186" cy="62" r="22"/>
-    <path d="M8 222 L100 116 L152 172 L202 130 L248 222 Z"/>
-  </g>
+  <polygon points="128,32 34,206 84,206 128,118 146,150 168,112" fill="#F4F9FF"/>
+  <polygon points="128,118 100,170 142,170 164,206 186,206 146,136" fill="#BDEBFF" opacity="0.82"/>
+  <polygon points="128,32 168,112 146,150 178,206 222,206" fill="#55D6FF" opacity="0.9"/>
 </svg>

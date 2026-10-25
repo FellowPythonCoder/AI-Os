@@ -6,5 +6,5 @@ Comment=A five-minute guided tour of Celestia Shell
 Exec=xfce4-terminal --title="Celestia Tutorial" -e celestia-tutorial
 Icon=celestia-shell
 Terminal=false
-Categories=System;Documentation;
+Categories=System;Utility;Documentation;
 StartupNotify=true

@@ -109,12 +109,38 @@ timeshift
 # --- fonts & icons fallback ---
 fonts-inter
 fonts-jetbrains-mono
+fonts-fira-code
 fonts-noto-core
 fonts-noto-color-emoji
 fonts-dejavu
 adwaita-icon-theme
 librsvg2-bin
 imagemagick
+
+# --- Kali & Debian Security Suite (core pre-installed) ---
+nmap
+tcpdump
+whois
+bind9-dnsutils
+netcat-openbsd
+socat
+mtr-tiny
+sqlmap
+gobuster
+dirb
+whatweb
+aircrack-ng
+john
+hydra
+crunch
+binwalk
+sleuthkit
+foremost
+libimage-exiftool-perl
+yara
+radare2
+lynis
+rkhunter
 
 # --- Python (AURA apps & CLI) ---
 python3

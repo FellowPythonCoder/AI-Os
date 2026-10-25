@@ -1,0 +1,584 @@
+{
+  "version": "1.0",
+  "notice": "For authorized security testing, defensive analysis, and educational research only.",
+  "categories": [
+    {
+      "id": "info-gathering",
+      "name": "Information Gathering",
+      "icon": "aura-nmap",
+      "tools": [
+        {
+          "id": "nmap",
+          "name": "Nmap",
+          "bin": "nmap",
+          "apt": "nmap",
+          "icon": "aura-nmap",
+          "gui": false,
+          "example": "nmap -sV --version-light 127.0.0.1",
+          "desc": "Industry-standard network discovery, port scanning, OS fingerprinting, and NSE script engine."
+        },
+        {
+          "id": "whatweb",
+          "name": "WhatWeb",
+          "bin": "whatweb",
+          "apt": "whatweb",
+          "icon": "aura-browser",
+          "gui": false,
+          "example": "whatweb --help",
+          "desc": "Next-generation web scanner that identifies CMS, frameworks, server headers, and versions."
+        },
+        {
+          "id": "whois",
+          "name": "WHOIS Lookup",
+          "bin": "whois",
+          "apt": "whois",
+          "icon": "aura-nmap",
+          "gui": false,
+          "example": "whois example.com",
+          "desc": "Query domain registration, ASN ownership, and IP netblock records."
+        },
+        {
+          "id": "dnsutils",
+          "name": "DNS Utilities (dig / nslookup)",
+          "bin": "dig",
+          "apt": "bind9-dnsutils",
+          "icon": "aura-nmap",
+          "gui": false,
+          "example": "dig +short example.com ANY",
+          "desc": "DNS interrogation utilities (dig, nslookup, nsupdate) for zone and record analysis."
+        },
+        {
+          "id": "theharvester",
+          "name": "theHarvester",
+          "bin": "theHarvester",
+          "apt": "theharvester",
+          "kali_repo": true,
+          "icon": "aura-nmap",
+          "gui": false,
+          "example": "theHarvester -h",
+          "desc": "OSINT reconnaissance tool for gathering subdomains, emails, and hosts from public sources."
+        },
+        {
+          "id": "recon-ng",
+          "name": "Recon-ng",
+          "bin": "recon-ng",
+          "apt": "recon-ng",
+          "kali_repo": true,
+          "icon": "aura-nmap",
+          "gui": false,
+          "example": "recon-ng --help",
+          "desc": "Modular Python web reconnaissance framework with an interactive Metasploit-style workspace."
+        },
+        {
+          "id": "maltego",
+          "name": "Maltego",
+          "bin": "maltego",
+          "apt": "maltego",
+          "kali_repo": true,
+          "icon": "aura-security",
+          "gui": true,
+          "example": "maltego",
+          "desc": "Visual link analysis and open-source intelligence (OSINT) graphing environment."
+        }
+      ]
+    },
+    {
+      "id": "web-security",
+      "name": "Web Application Security",
+      "icon": "aura-burpsuite",
+      "tools": [
+        {
+          "id": "sqlmap",
+          "name": "SQLMap",
+          "bin": "sqlmap",
+          "apt": "sqlmap",
+          "icon": "aura-sqlmap",
+          "gui": false,
+          "example": "sqlmap --help",
+          "desc": "Automated SQL injection detection, auditing, and database takeover testing tool."
+        },
+        {
+          "id": "gobuster",
+          "name": "Gobuster",
+          "bin": "gobuster",
+          "apt": "gobuster",
+          "icon": "aura-gobuster",
+          "gui": false,
+          "example": "gobuster --help",
+          "desc": "Fast Go-based URI/directory, DNS subdomain, and virtual host brute-forcing tool."
+        },
+        {
+          "id": "nikto",
+          "name": "Nikto",
+          "bin": "nikto",
+          "apt": "nikto",
+          "icon": "aura-nikto",
+          "gui": false,
+          "example": "nikto -Help",
+          "desc": "Web server scanner testing for dangerous files, outdated server software, and misconfigurations."
+        },
+        {
+          "id": "dirb",
+          "name": "Dirb",
+          "bin": "dirb",
+          "apt": "dirb",
+          "icon": "aura-gobuster",
+          "gui": false,
+          "example": "dirb",
+          "desc": "Dictionary-based web content scanner for discovering hidden paths and web objects."
+        },
+        {
+          "id": "wfuzz",
+          "name": "Wfuzz",
+          "bin": "wfuzz",
+          "apt": "wfuzz",
+          "icon": "aura-burpsuite",
+          "gui": false,
+          "example": "wfuzz --help",
+          "desc": "Flexible web application fuzzer for parameters, headers, authentication, and forms."
+        },
+        {
+          "id": "feroxbuster",
+          "name": "Feroxbuster",
+          "bin": "feroxbuster",
+          "apt": "feroxbuster",
+          "kali_repo": true,
+          "icon": "aura-gobuster",
+          "gui": false,
+          "example": "feroxbuster --help",
+          "desc": "Fast, recursive Rust-based content discovery tool for web applications."
+        },
+        {
+          "id": "zaproxy",
+          "name": "OWASP ZAP",
+          "bin": "zaproxy",
+          "apt": "zaproxy",
+          "kali_repo": true,
+          "icon": "aura-zaproxy",
+          "gui": true,
+          "example": "zaproxy",
+          "desc": "OWASP Zed Attack Proxy — intercepting proxy and automated web application vulnerability scanner."
+        },
+        {
+          "id": "burpsuite",
+          "name": "Burp Suite Community",
+          "bin": "burpsuite",
+          "apt": "burpsuite",
+          "kali_repo": true,
+          "icon": "aura-burpsuite",
+          "gui": true,
+          "example": "burpsuite",
+          "desc": "Graphical platform for testing web application security with intercepting HTTP/S proxy and repeater."
+        }
+      ]
+    },
+    {
+      "id": "network-analysis",
+      "name": "Network Analysis",
+      "icon": "aura-wireshark",
+      "tools": [
+        {
+          "id": "wireshark",
+          "name": "Wireshark",
+          "bin": "wireshark",
+          "apt": "wireshark",
+          "icon": "aura-wireshark",
+          "gui": true,
+          "example": "wireshark",
+          "desc": "Graphical network protocol analyzer for deep packet inspection and live capture."
+        },
+        {
+          "id": "tshark",
+          "name": "TShark",
+          "bin": "tshark",
+          "apt": "tshark",
+          "icon": "aura-wireshark",
+          "gui": false,
+          "example": "tshark -D",
+          "desc": "Terminal-oriented Wireshark packet capture and protocol dissection utility."
+        },
+        {
+          "id": "tcpdump",
+          "name": "tcpdump",
+          "bin": "tcpdump",
+          "apt": "tcpdump",
+          "icon": "aura-wireshark",
+          "gui": false,
+          "needs_root": true,
+          "example": "sudo tcpdump -D",
+          "desc": "Classic command-line packet analyzer with Berkeley Packet Filter (BPF) expressions."
+        },
+        {
+          "id": "ettercap",
+          "name": "Ettercap",
+          "bin": "ettercap",
+          "apt": "ettercap-text-only",
+          "icon": "aura-wireshark",
+          "gui": false,
+          "needs_root": true,
+          "example": "ettercap --help",
+          "desc": "Comprehensive suite for LAN security testing, ARP auditing, and traffic inspection."
+        },
+        {
+          "id": "bettercap",
+          "name": "bettercap",
+          "bin": "bettercap",
+          "apt": "bettercap",
+          "kali_repo": true,
+          "icon": "aura-wireshark",
+          "gui": false,
+          "needs_root": true,
+          "example": "bettercap -h",
+          "desc": "Swiss-army knife for 802.11, BLE, IPv4, and IPv6 network reconnaissance and MITM testing."
+        },
+        {
+          "id": "netcat",
+          "name": "Netcat (nc)",
+          "bin": "nc",
+          "apt": "netcat-openbsd",
+          "icon": "celestia-shell",
+          "gui": false,
+          "example": "nc -h",
+          "desc": "TCP/UDP network swiss-army knife for debugging, banner grabbing, and port listening."
+        }
+      ]
+    },
+    {
+      "id": "vulnerability",
+      "name": "Vulnerability Assessment",
+      "icon": "aura-security",
+      "tools": [
+        {
+          "id": "lynis",
+          "name": "Lynis Security Auditor",
+          "bin": "lynis",
+          "apt": "lynis",
+          "icon": "aura-security",
+          "gui": false,
+          "needs_root": true,
+          "example": "sudo lynis show commands",
+          "desc": "In-depth Linux system security auditing, compliance checking, and hardening advisor."
+        },
+        {
+          "id": "nuclei",
+          "name": "Nuclei",
+          "bin": "nuclei",
+          "apt": "nuclei",
+          "kali_repo": true,
+          "icon": "aura-security",
+          "gui": false,
+          "example": "nuclei -h",
+          "desc": "Fast, template-based vulnerability scanner across HTTP, DNS, TCP, and cloud targets."
+        },
+        {
+          "id": "gvm",
+          "name": "Greenbone / OpenVAS (GVM)",
+          "bin": "gvm-check-setup",
+          "apt": "gvm",
+          "kali_repo": true,
+          "icon": "aura-security",
+          "gui": false,
+          "needs_root": true,
+          "example": "sudo gvm-check-setup",
+          "desc": "Full enterprise vulnerability management and network assessment framework."
+        },
+        {
+          "id": "rkhunter",
+          "name": "Rootkit Hunter (rkhunter)",
+          "bin": "rkhunter",
+          "apt": "rkhunter",
+          "icon": "aura-security",
+          "gui": false,
+          "needs_root": true,
+          "example": "sudo rkhunter --versioncheck",
+          "desc": "Scans for rootkits, backdoors, and local privilege-escalation anomalies."
+        }
+      ]
+    },
+    {
+      "id": "wireless",
+      "name": "Wireless Security",
+      "icon": "aura-aircrack",
+      "tools": [
+        {
+          "id": "aircrack-ng",
+          "name": "Aircrack-ng",
+          "bin": "aircrack-ng",
+          "apt": "aircrack-ng",
+          "icon": "aura-aircrack",
+          "gui": false,
+          "wireless_hw": true,
+          "example": "aircrack-ng --help",
+          "desc": "Complete 802.11 WEP and WPA/WPA2-PSK auditing suite (airmon-ng, airodump-ng, aireplay-ng, aircrack-ng). Note: offline .cap/.pcapng cracking works inside UTM; live monitor mode requires USB Wi-Fi passthrough."
+        },
+        {
+          "id": "wifite",
+          "name": "Wifite2",
+          "bin": "wifite",
+          "apt": "wifite",
+          "icon": "aura-aircrack",
+          "gui": false,
+          "needs_root": true,
+          "wireless_hw": true,
+          "example": "sudo wifite --help",
+          "desc": "Automated wireless auditing tool for WEP, WPA/WPA2, and WPS networks (requires monitor-mode USB Wi-Fi adapter)."
+        },
+        {
+          "id": "reaver",
+          "name": "Reaver",
+          "bin": "reaver",
+          "apt": "reaver",
+          "icon": "aura-aircrack",
+          "gui": false,
+          "needs_root": true,
+          "wireless_hw": true,
+          "example": "reaver --help",
+          "desc": "Wi-Fi Protected Setup (WPS) registrar PIN auditing utility (requires monitor-mode wireless interface)."
+        },
+        {
+          "id": "kismet",
+          "name": "Kismet",
+          "bin": "kismet",
+          "apt": "kismet",
+          "kali_repo": true,
+          "icon": "aura-aircrack",
+          "gui": false,
+          "wireless_hw": true,
+          "example": "kismet --help",
+          "desc": "Wireless network and device detector, sniffer, wardriving tool, and WIDS framework."
+        }
+      ]
+    },
+    {
+      "id": "password-auditing",
+      "name": "Password Auditing",
+      "icon": "aura-john",
+      "tools": [
+        {
+          "id": "john",
+          "name": "John the Ripper",
+          "bin": "john",
+          "apt": "john",
+          "icon": "aura-john",
+          "gui": false,
+          "example": "john --test=1",
+          "desc": "Fast password hash cracker supporting hundreds of hash and cipher types on ARM64 and x86_64."
+        },
+        {
+          "id": "hashcat",
+          "name": "Hashcat",
+          "bin": "hashcat",
+          "apt": "hashcat",
+          "icon": "aura-hashcat",
+          "gui": false,
+          "example": "hashcat --help | head -n 30",
+          "desc": "High-performance password recovery utility supporting 300+ hashing algorithms."
+        },
+        {
+          "id": "hydra",
+          "name": "THC-Hydra",
+          "bin": "hydra",
+          "apt": "hydra",
+          "icon": "aura-hydra",
+          "gui": false,
+          "example": "hydra -h",
+          "desc": "Parallelized network login auditor supporting SSH, FTP, HTTP, SMB, RDP, PostgreSQL, and 50+ protocols."
+        },
+        {
+          "id": "medusa",
+          "name": "Medusa",
+          "bin": "medusa",
+          "apt": "medusa",
+          "icon": "aura-hydra",
+          "gui": false,
+          "example": "medusa -d",
+          "desc": "Speedy, massively parallel, modular login brute-forcer for network services."
+        },
+        {
+          "id": "crunch",
+          "name": "Crunch Wordlist Generator",
+          "bin": "crunch",
+          "apt": "crunch",
+          "icon": "aura-john",
+          "gui": false,
+          "example": "crunch 4 4 0123456789 -c 20",
+          "desc": "Generate custom password wordlists from character sets and permutation patterns."
+        }
+      ]
+    },
+    {
+      "id": "forensics",
+      "name": "Digital Forensics",
+      "icon": "aura-archive",
+      "tools": [
+        {
+          "id": "binwalk",
+          "name": "Binwalk",
+          "bin": "binwalk",
+          "apt": "binwalk",
+          "icon": "aura-archive",
+          "gui": false,
+          "example": "binwalk --help",
+          "desc": "Firmware analysis and reverse-engineering tool for searching binary images for embedded files."
+        },
+        {
+          "id": "sleuthkit",
+          "name": "The Sleuth Kit (TSK)",
+          "bin": "fls",
+          "apt": "sleuthkit",
+          "icon": "aura-archive",
+          "gui": false,
+          "example": "fls -V",
+          "desc": "Collection of command-line digital forensics tools for disk image and filesystem analysis."
+        },
+        {
+          "id": "foremost",
+          "name": "Foremost",
+          "bin": "foremost",
+          "apt": "foremost",
+          "icon": "aura-archive",
+          "gui": false,
+          "example": "foremost -h",
+          "desc": "Forensic file carving program that recovers deleted files based on headers, footers, and data structures."
+        },
+        {
+          "id": "exiftool",
+          "name": "ExifTool",
+          "bin": "exiftool",
+          "apt": "libimage-exiftool-perl",
+          "icon": "aura-photos",
+          "gui": false,
+          "example": "exiftool -ver",
+          "desc": "Read, write, and audit EXIF, GPS, XMP, and IPTC metadata across images, PDFs, and media files."
+        },
+        {
+          "id": "yara",
+          "name": "YARA",
+          "bin": "yara",
+          "apt": "yara",
+          "icon": "aura-security",
+          "gui": false,
+          "example": "yara --version",
+          "desc": "Pattern-matching swiss-army knife for malware researchers and incident responders."
+        },
+        {
+          "id": "autopsy",
+          "name": "Autopsy",
+          "bin": "autopsy",
+          "apt": "autopsy",
+          "icon": "aura-archive",
+          "gui": false,
+          "example": "autopsy -h",
+          "desc": "Graphical interface to The Sleuth Kit for forensic disk image investigation."
+        },
+        {
+          "id": "volatility3",
+          "name": "Volatility 3",
+          "bin": "vol",
+          "apt": "volatility3",
+          "kali_repo": true,
+          "icon": "aura-monitor",
+          "gui": false,
+          "example": "vol -h",
+          "desc": "Volatile memory (RAM dump) extraction and incident response analysis framework."
+        }
+      ]
+    },
+    {
+      "id": "exploitation",
+      "name": "Exploitation & Reverse Engineering",
+      "icon": "aura-metasploit",
+      "tools": [
+        {
+          "id": "metasploit",
+          "name": "Metasploit Framework",
+          "bin": "msfconsole",
+          "apt": "metasploit-framework",
+          "kali_repo": true,
+          "icon": "aura-metasploit",
+          "gui": false,
+          "example": "msfconsole --version",
+          "desc": "Comprehensive penetration testing platform for developing, testing, and executing exploit modules."
+        },
+        {
+          "id": "searchsploit",
+          "name": "SearchSploit (Exploit-DB)",
+          "bin": "searchsploit",
+          "apt": "exploitdb",
+          "kali_repo": true,
+          "icon": "aura-metasploit",
+          "gui": false,
+          "example": "searchsploit --help",
+          "desc": "Offline command-line search utility for The Exploit Database archive and papers."
+        },
+        {
+          "id": "radare2",
+          "name": "Radare2",
+          "bin": "r2",
+          "apt": "radare2",
+          "icon": "aura-studio",
+          "gui": false,
+          "example": "r2 -v",
+          "desc": "Disassembler, hexadecimal editor, debugger, and binary reverse-engineering framework."
+        },
+        {
+          "id": "gdb",
+          "name": "GNU Debugger (GDB)",
+          "bin": "gdb",
+          "apt": "gdb",
+          "icon": "aura-studio",
+          "gui": false,
+          "example": "gdb --version",
+          "desc": "Source- and assembly-level debugger for C, C++, Rust, and native ARM64 binaries."
+        }
+      ]
+    },
+    {
+      "id": "dev-utilities",
+      "name": "Development & Defensive Utilities",
+      "icon": "aura-studio",
+      "tools": [
+        {
+          "id": "git",
+          "name": "Git Version Control",
+          "bin": "git",
+          "apt": "git",
+          "icon": "aura-studio",
+          "gui": false,
+          "example": "git --version",
+          "desc": "Distributed version control system for source code and security research repositories."
+        },
+        {
+          "id": "python3",
+          "name": "Python 3 Environment",
+          "bin": "python3",
+          "apt": "python3",
+          "icon": "aura-studio",
+          "gui": false,
+          "example": "python3 --version",
+          "desc": "Python 3 runtime with venv, pipx, and scripting libraries."
+        },
+        {
+          "id": "podman",
+          "name": "Podman Containers",
+          "bin": "podman",
+          "apt": "podman",
+          "icon": "aura-studio",
+          "gui": false,
+          "example": "podman --version",
+          "desc": "Daemonless OCI container engine for running isolated security labs and Kali containers."
+        },
+        {
+          "id": "gufw",
+          "name": "AURA Firewall (UFW)",
+          "bin": "gufw",
+          "apt": "gufw",
+          "icon": "aura-firewall",
+          "gui": true,
+          "example": "gufw",
+          "desc": "Graphical and CLI host firewall configuration (default-deny incoming)."
+        }
+      ]
+    }
+  ]
+}

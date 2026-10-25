@@ -14,7 +14,7 @@ Debian GNU/Linux underneath and **Celestia Shell**, AURA's signature terminal.
 > AURA is an independent project. It is not affiliated with Apple, and it
 > is not a website or a mockup — it's a real OS you boot.
 
-![AURA default wallpaper: midnight blue peaks over a still lake](rootfs/usr/share/backgrounds/aura/aura-midnight-peaks.jpg)
+![AURA default wallpaper: glowing dark-blue alpine peaks over a mirror lake](rootfs/usr/share/backgrounds/aura/aura-dark-peaks.jpg)
 
 ---
 
@@ -22,11 +22,14 @@ Debian GNU/Linux underneath and **Celestia Shell**, AURA's signature terminal.
 
 | | |
 |---|---|
-| 🏔 **Liquid Glass Identity** | Original 3D blue-mountain logo, 8 coordinated wallpapers (incl. Liquid Waves, Cyan Horizon, Minimal Gradient & Lock Peaks), custom GTK3/4 + xfwm4 Liquid Glass themes (Light & Dark), 84 SVG 3D-inspired `AuraIcons`, animated `AuraCursor`, synthesized sound theme, Plymouth boot splash, GRUB theme, LightDM login |
-| 🔒 **PAM Lock Screen** | `aura-lock` (`Super+L`) — real Linux PAM (`libpam.so.0` + `PAM_DISALLOW_NULL_AUTHTOK`) session lock with mountain wallpaper, animated snow/light particles, large centered digital clock + date, glowing circular user avatar, translucent blue-glass password box, notification privacy (auto-DND while locked), and idle auto-lock |
-| 🖥️ **Desktop & Quick Settings** | Xfce-based: translucent 32px top menu bar with global app menu, floating `aura-quicksettings` control center (`Super+S`), Plank floating blue-glass dock with magnification & running indicators, 4 workspaces, window snapping/tiling, Spotlight-style search (`Super+Space`) |
-| ⌨️ **Celestia Shell** | Deep navy (`#071426`) Zsh terminal with electric-cyan (`#55D6FF`) syntax highlighting, tabs, `tmux` split panes (`panes`), autosuggestions, fuzzy history + the **`aura`** CLI (`aura glass`, `aura lock`, `aura theme`, `aura install`, `aura doctor`, …) |
-| 🧩 **26 AURA apps** | Finder, Browser, Settings, Quick Settings, Lock Screen, App Center, Text, Studio, Notes, Calendar, Calculator, Monitor, Photos, Media, Archive, Screenshot, PDF, Transfer, Task Manager, Backup, Firewall, Help, Welcome, About… every one launches a real program |
+| 🏔 **Liquid Glass & Geometric Crest** | Symmetrical angular blue-mountain logo family (`aura-logo`, `aura-logo-symbol`, `aura-logo-mono`, `aura-avatar`), 9 coordinated wallpapers (led by `aura-dark-peaks.jpg`), custom GTK3/4 + xfwm4 themes (`#050D1A`, `#071426`, `#1677FF`, `#55D6FF`), 114 SVG `AuraIcons`, animated `AuraCursor`, Plymouth boot splash, GRUB theme, LightDM login |
+| 🔤 **Cool Geometric Fonts** | Futuristic & high-legibility typography (`Orbitron`, `Rajdhani`, `Exo 2`, `Inter`, `JetBrains Mono`, `Fira Code`) with instant live switching via `aura font <preset>` |
+| 🧭 **Cool App Bar & Launcher** | Floating dark-blue glass **Aura App Bar** (`aura-appbar`) with `"Search anything..."` desktop search popover + searchable 8-category **Aura Application Launcher** (`aura-launcher`) + centered Plank dock |
+| 🛡️ **Aura Security Center (Kali Suite)** | `aura-security` & `aura kali` — 9 security & defensive categories (Information Gathering, Web App Security, Network Analysis, Vulnerability Assessment, Wireless Security, Password Auditing, Digital Forensics, Exploitation & Reverse Engineering, Development & Defensive Utilities) with real `PATH`/`dpkg` detection, one-click install/update/remove/launch, optional safe `kali-rolling` repo pinning (`Pin-Priority: 100`), and VM wireless hardware advisor |
+| 🔒 **PAM Lock Screen** | `aura-lock` (`Super+L`) — real Linux PAM (`libpam.so.0` + `PAM_DISALLOW_NULL_AUTHTOK`) session lock with dark-peaks wallpaper, geometric Aura mountain crest above user profile, show-password toggle, sleep/restart/shutdown/switch-user controls, and notification privacy |
+| 🖥️ **Desktop & Quick Settings** | Xfce-based: translucent 32px top bar (`[▲] AURA OS`, workspace pager, active app menu, system tray, clock), floating `aura-quicksettings` control center (Network, Bluetooth, Dark Mode, Night Light, DND, Power Profile, Firewall, Screen Recording, VPN, Volume, Brightness), and live `aura-monitor` (CPU, Guest RAM, Disk I/O, Network, Thermal, Reduced-Effects toggle) |
+| ⌨️ **Celestia Shell** | Deep midnight (`#050D1A`) Zsh terminal with electric-cyan (`#55D6FF`) syntax highlighting, tabs, `tmux` split panes (`panes`), autosuggestions, fuzzy history + the **`aura`** CLI (`aura kali`, `aura font`, `aura appbar`, `aura launcher`, `aura glass`, `aura lock`, `aura theme`, `aura install`, `aura doctor`, …) |
+| 🧩 **29 AURA apps** | Launcher, Security Center, App Bar, Finder, Browser, Settings, Quick Settings, Lock Screen, App Center, Text, Studio, Notes, Calendar, Calculator, Monitor, Photos, Media, Archive, Screenshot, PDF, Transfer, Task Manager, Backup, Firewall, Help, Welcome, About… every one launches a real program |
 | 🎨 **12-Section System Settings** | Interactive **Liquid Glass Theme Editor** with live Cairo preview, glass opacity & blur sliders, performance mode, wallpapers & lock screen config, dock & menu bar, icons & cursor, UTM display & brightness, keyboard/mouse, notifications, security, network/audio, startup items, Celestia Shell, and VM info |
 | 🛠️ **Developer-ready** | Git, Python 3, Node.js + npm, GCC/G++/CMake/GDB, tmux, ripgrep, SSH, curl preinstalled |
 | 🍎 **UTM-native** | ARM64 guest tools preinstalled (clipboard, display resize, shared folders), honest guest-vs-host RAM reporting, tuned for a 16 GB Mac |
