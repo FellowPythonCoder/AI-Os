@@ -28,46 +28,16 @@ mkdir -p "$LIVE_DIR/config/package-lists" \
 
 echo "▸ Assembling live-build configuration…"
 
-# Guaranteed Debian 12 bookworm arm64 foundation list for live-build stage 1
+# Guaranteed Debian 12 bookworm arm64 live-boot foundation for stage 1;
+# the full desktop & app suite is installed with apt-cache verification in the chroot hook below.
 cat > "$LIVE_DIR/config/package-lists/aura.list.chroot" <<'PKGEOF'
-systemd
-systemd-sysv
-dbus
-sudo
-locales
-tzdata
-ca-certificates
 live-boot
 live-config
 live-config-systemd
-xorg
-xserver-xorg-input-libinput
-lightdm
-lightdm-gtk-greeter
-xfce4-panel
-xfce4-session
-xfce4-settings
-xfwm4
-xfdesktop4
-xfconf
-thunar
-xfce4-terminal
-xfce4-whiskermenu-plugin
-xfce4-appfinder
-xfce4-notifyd
-xfce4-power-manager
-xfce4-screensaver
-xfce4-screenshooter
-xfce4-taskmanager
-plank
-python3
-python3-gi
-python3-gi-cairo
-gir1.2-gtk-3.0
-zsh
-calamares
-calamares-settings-debian
-grub-efi-arm64
+systemd-sysv
+sudo
+locales
+ca-certificates
 grub-efi-arm64-bin
 PKGEOF
 
