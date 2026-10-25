@@ -28,18 +28,58 @@ mkdir -p "$LIVE_DIR/config/package-lists" \
 
 echo "▸ Assembling live-build configuration…"
 
-# Core + live package list (comments and blank lines stripped for live-build)
-grep -Ev '^[[:space:]]*(#|$)' \
+# Guaranteed Debian 12 bookworm arm64 foundation list for live-build stage 1
+cat > "$LIVE_DIR/config/package-lists/aura.list.chroot" <<'PKGEOF'
+systemd
+systemd-sysv
+dbus
+sudo
+locales
+tzdata
+ca-certificates
+live-boot
+live-config
+live-config-systemd
+xorg
+xserver-xorg-input-libinput
+lightdm
+lightdm-gtk-greeter
+xfce4-panel
+xfce4-session
+xfce4-settings
+xfwm4
+xfdesktop4
+xfconf
+thunar
+xfce4-terminal
+xfce4-whiskermenu-plugin
+xfce4-appfinder
+xfce4-notifyd
+xfce4-power-manager
+xfce4-screensaver
+xfce4-screenshooter
+xfce4-taskmanager
+plank
+python3
+python3-gi
+python3-gi-cairo
+gir1.2-gtk-3.0
+zsh
+calamares
+calamares-settings-debian
+grub-efi-arm64
+grub-efi-arm64-bin
+PKGEOF
+
+# Full package manifest (core + live + optional) installed inside the chroot hook
+grep -Ehv '^[[:space:]]*(#|$)' \
     "$REPO_DIR/build/packages/core.txt" \
     "$REPO_DIR/build/packages/live.txt" \
-    > "$LIVE_DIR/config/package-lists/aura.list.chroot"
+    "$REPO_DIR/build/packages/optional.txt" \
+    > "$LIVE_DIR/config/includes.chroot/usr/share/aura/all-packages.txt"
 
 # Root filesystem overlay (the whole AURA Liquid Glass personality)
-rsync -a --delete "$REPO_DIR/rootfs/" "$LIVE_DIR/config/includes.chroot/"
-
-# Copy optional package list into chroot so the hook can install available ones tolerantly
-install -Dm644 "$REPO_DIR/build/packages/optional.txt" \
-    "$LIVE_DIR/config/includes.chroot/usr/share/aura/optional-packages.txt"
+rsync -a "$REPO_DIR/rootfs/" "$LIVE_DIR/config/includes.chroot/"
 
 # Calamares branding (graphical installer)
 install -d "$LIVE_DIR/config/includes.chroot/etc/calamares/branding/aura"
@@ -47,18 +87,30 @@ cp "$REPO_DIR/build/live/calamares/branding.desc" \
    "$REPO_DIR/build/live/calamares/show.qml" \
    "$LIVE_DIR/config/includes.chroot/etc/calamares/branding/aura/"
 
-# Chroot hook: install available optional packages + finalize AURA inside the image
+# Chroot hook: install all available AURA packages + finalize AURA inside the image
 cat > "$LIVE_DIR/config/hooks/live/0500-aura.hook.chroot" <<'HOOK'
 #!/bin/sh
 set -e
 export DEBIAN_FRONTEND=noninteractive
-echo "AURA hook: installing available optional packages…"
-if [ -f /usr/share/aura/optional-packages.txt ]; then
-    for pkg in $(grep -Ev '^[[:space:]]*(#|$)' /usr/share/aura/optional-packages.txt); do
+echo "AURA hook: resolving and installing full AURA package suite…"
+if [ -f /usr/share/aura/all-packages.txt ]; then
+    AVAIL=""
+    for pkg in $(cat /usr/share/aura/all-packages.txt); do
         if apt-cache show "$pkg" >/dev/null 2>&1; then
-            apt-get install -y --no-install-recommends "$pkg" || true
+            AVAIL="$AVAIL $pkg"
+        else
+            echo "  (skipping unavailable package: $pkg)"
         fi
     done
+    if [ -n "$AVAIL" ]; then
+        # Batch install first for speed; fall back per-package if needed
+        # shellcheck disable=SC2086
+        apt-get install -y --no-install-recommends $AVAIL || {
+            for pkg in $AVAIL; do
+                apt-get install -y --no-install-recommends "$pkg" || true
+            done
+        }
+    fi
 fi
 echo "AURA hook: finalizing system…"
 /usr/share/aura/finalize.sh --skip-boot --live || true
@@ -77,11 +129,6 @@ cd "$LIVE_DIR"
 # so re-running after a failure resumes in minutes, not from zero.
 lb clean >/dev/null 2>&1 || true
 
-KEYRING_OPT=()
-if [ -f /usr/share/keyrings/debian-archive-keyring.gpg ]; then
-    KEYRING_OPT=(--debootstrap-options "--keyring=/usr/share/keyrings/debian-archive-keyring.gpg")
-fi
-
 echo "▸ Configuring (Debian bookworm, arm64, grub-efi)…"
 lb config noauto \
     --mode debian \
@@ -97,7 +144,6 @@ lb config noauto \
     --parent-mirror-chroot "http://deb.debian.org/debian" \
     --parent-mirror-chroot-security "http://security.debian.org/debian-security" \
     --parent-mirror-binary "http://deb.debian.org/debian" \
-    "${KEYRING_OPT[@]}" \
     --binary-images iso-hybrid \
     --bootloaders grub-efi \
     --bootappend-live "boot=live components quiet splash loglevel=3 username=aura user-fullname=AURA hostname=aura-os locales=en_US.UTF-8 keyboard-layouts=us" \

@@ -1,8 +1,8 @@
 name: Build AURA OS ISO (live-build, ARM64)
 
-# Builds the bootable live/installer ISO on GitHub's native ARM64 runners.
-# Runs automatically on pushes to the active branch or main, manual dispatch,
-# or version tags, and publishes the built ISO to GitHub Releases & Artifacts.
+# Builds the bootable live/installer ISO on GitHub's native ARM64 runners
+# inside an official ARM64 Debian 12 (bookworm) container so Debian's native
+# live-build (1:20230502) and debootstrap produce an authentic bookworm ISO.
 
 on:
   workflow_dispatch:
@@ -24,18 +24,24 @@ jobs:
       - name: Free up disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
 
-      - name: Install live-build & ARM64 ISO dependencies
+      - name: Build ISO inside ARM64 Debian 12 (bookworm)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            live-build debootstrap debian-archive-keyring rsync \
-            squashfs-tools xorriso grub-efi-arm64-bin mtools dosfstools
-
-      - name: Build ISO
-        run: sudo ./build/build-iso.sh
+          docker run --rm --privileged \
+            -v "$PWD:/work" -w /work \
+            debian:bookworm bash -c '
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                sudo live-build debootstrap debian-archive-keyring rsync \
+                squashfs-tools xorriso grub-efi-arm64-bin mtools dosfstools \
+                ca-certificates cpio fdisk
+              ./build/build-iso.sh
+            '
 
       - name: Show artifacts
-        run: ls -lh build/out/
+        if: always()
+        run: ls -lh build/out/ || true
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
