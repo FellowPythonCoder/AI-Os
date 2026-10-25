@@ -53,9 +53,12 @@ xorg
 xserver-xorg-input-libinput
 lightdm
 lightdm-gtk-greeter
-lightdm-slick-greeter
-Plymouth
+slick-greeter
+plymouth
+plymouth-themes
 mesa-utils
+libpam-runtime
+libpam-modules-bin
 
 # --- Xfce desktop (AURA's foundation) ---
 xfce4-panel
@@ -82,8 +85,7 @@ xfce4-clipman-plugin
 xfce4-pulseaudio-plugin
 mousepad
 ristretto
-Parole
-orage
+parole
 catfish
 plank
 libcanberra-gtk3-module
@@ -102,7 +104,6 @@ geany
 galculator
 xarchiver
 evince
-uget
 timeshift
 
 # --- fonts & icons fallback ---

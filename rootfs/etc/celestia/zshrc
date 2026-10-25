@@ -88,10 +88,30 @@ celestia() {
 # ── Plugins (installed as Debian packages; loaded only if present) ──────────
 [[ -r /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && \
   source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-[[ -r /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
+if [[ -r /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
   source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+  # AURA Liquid Glass blue/cyan syntax highlighting palette
+  typeset -A ZSH_HIGHLIGHT_STYLES
+  ZSH_HIGHLIGHT_STYLES[command]='fg=#55d6ff,bold'
+  ZSH_HIGHLIGHT_STYLES[alias]='fg=#55d6ff,bold'
+  ZSH_HIGHLIGHT_STYLES[builtin]='fg=#38b6ff,bold'
+  ZSH_HIGHLIGHT_STYLES[function]='fg=#55d6ff'
+  ZSH_HIGHLIGHT_STYLES[single-quoted-argument]='fg=#bdebff'
+  ZSH_HIGHLIGHT_STYLES[double-quoted-argument]='fg=#bdebff'
+  ZSH_HIGHLIGHT_STYLES[path]='fg=#9cc2e6,underline'
+  ZSH_HIGHLIGHT_STYLES[unknown-token]='fg=#e35d6a,bold'
+fi
 [[ -r /usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh ]] && \
   source /usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh
+
+# panes — open split-pane workspace inside Celestia Shell
+panes() {
+  if command -v tmux >/dev/null 2>&1; then
+    tmux new-session -A -s celestia
+  else
+    echo "tmux not installed — install with: aura install tmux"
+  fi
+}
 
 # ── Key bindings ─────────────────────────────────────────────────────────────
 bindkey -e                                   # familiar emacs-style editing

@@ -101,22 +101,22 @@ def draw_button(w, h, bg_top, bg_bottom, circle_color, glyph, glyph_color):
 
 THEMES = {
     "AuraDark": dict(
-        active_top=(27, 49, 87), active_bottom=(16, 28, 51),
-        inactive_top=(22, 38, 63), inactive_bottom=(13, 22, 40),
-        frame=(16, 28, 51), frame_inactive=(13, 22, 40),
-        btn=(47, 127, 224), btn_close=(227, 93, 106),
-        btn_pressed=(29, 95, 192), btn_inactive=(90, 113, 148),
-        glyph=(255, 255, 255),
-        themerc_text=("#e8f1fc", "#9db4d0"),
+        active_top=(18, 54, 105), active_bottom=(7, 20, 38),
+        inactive_top=(11, 35, 69), inactive_bottom=(7, 20, 38),
+        frame=(11, 35, 69), frame_inactive=(7, 20, 38),
+        btn=(22, 119, 255), btn_close=(85, 214, 255),
+        btn_pressed=(11, 79, 200), btn_inactive=(68, 102, 148),
+        glyph=(244, 249, 255),
+        themerc_text=("#F4F9FF", "#9CC2E6"),
     ),
     "AuraLight": dict(
-        active_top=(255, 255, 255), active_bottom=(226, 238, 251),
-        inactive_top=(240, 247, 255), inactive_bottom=(217, 231, 246),
-        frame=(200, 219, 240), frame_inactive=(205, 222, 240),
-        btn=(47, 127, 224), btn_close=(227, 93, 106),
-        btn_pressed=(29, 95, 192), btn_inactive=(160, 182, 208),
-        glyph=(255, 255, 255),
-        themerc_text=("#12233d", "#5a7194"),
+        active_top=(244, 249, 255), active_bottom=(218, 238, 255),
+        inactive_top=(244, 249, 255), inactive_bottom=(228, 242, 255),
+        frame=(189, 235, 255), frame_inactive=(205, 228, 248),
+        btn=(22, 119, 255), btn_close=(85, 214, 255),
+        btn_pressed=(11, 79, 200), btn_inactive=(148, 178, 212),
+        glyph=(244, 249, 255),
+        themerc_text=("#071426", "#486B94"),
     ),
 }
 

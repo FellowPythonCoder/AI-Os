@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Lock Screen
+Comment=Lock the desktop session with AURA Liquid Glass
+Exec=aura-lock
+Icon=aura-lock
+Terminal=false
+Categories=System;Security;
+StartupNotify=true

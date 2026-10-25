@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=AURA Quick Settings
+Comment=Liquid Glass control center for network, audio, brightness, theme and power
+Exec=aura-quicksettings
+Icon=aura-quicksettings
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=true

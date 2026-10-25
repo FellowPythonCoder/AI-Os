@@ -1,0 +1,4 @@
+#%PAM-1.0
+# AURA OS Liquid Glass Lock Screen — real PAM authentication
+@include common-auth
+@include common-account

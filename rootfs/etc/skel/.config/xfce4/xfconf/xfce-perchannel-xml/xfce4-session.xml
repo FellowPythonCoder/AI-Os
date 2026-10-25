@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AURA OS session defaults — routes Lock Screen actions to aura-lock -->
+<channel name="xfce4-session" version="1.0">
+  <property name="general" type="empty">
+    <property name="FailsafeSessionName" type="string" value="Failsafe"/>
+    <property name="LockCommand" type="string" value="aura-lock"/>
+    <property name="SaveOnExit" type="bool" value="false"/>
+  </property>
+</channel>

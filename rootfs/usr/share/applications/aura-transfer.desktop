@@ -2,8 +2,8 @@
 Version=1.0
 Type=Application
 Name=AURA Transfer
-Comment=Download manager with pause, resume and queues
-Exec=uget-gtk
+Comment=Resumable downloads, checksum verifier and file transfer
+Exec=aura-transfer
 Icon=aura-transfer
 Terminal=false
 Categories=Network;FileTransfer;

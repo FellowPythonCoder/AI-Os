@@ -1,10 +1,10 @@
 [Scheme]
 Name=Celestia
-Description=AURA OS signature terminal colors — deep blue night with icy cyan accents.
-ColorForeground=#d9e8fa
-ColorBackground=#0a1428
-ColorCursor=#56c7f2
-ColorSelection=rgba(47,127,224,0.45)
-ColorSelectionUseDefault=FALSE
-TabActivityColor=#56c7f2
-ColorPalette=#1b2b4a;#e35d6a;#3fc48f;#e8c33c;#2f7fe0;#9d7ce0;#2fc4c4;#c7d6ea;#3d5578;#f2768a;#5fd9ae;#f2d763;#57a8f2;#bda1f2;#6fe3de;#eaf3fd
+ColorForeground=#F4F9FF
+ColorBackground=#071426
+ColorCursor=#55D6FF
+ColorCursorForeground=#071426
+ColorSelection=#1677FF
+ColorSelectionBackground=#1677FF
+TabActivityColor=#55D6FF
+ColorPalette=#0B2345;#E35D6A;#38D9A9;#38B6FF;#1677FF;#7A8FF5;#55D6FF;#D6E8FA;#234575;#FF7885;#63E6BE;#74C8FF;#4CA0FF;#A5B4FC;#BDEBFF;#F4F9FF

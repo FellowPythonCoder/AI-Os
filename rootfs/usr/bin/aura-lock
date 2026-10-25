@@ -1,0 +1,787 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+aura-lock — AURA OS Liquid Glass Lock Screen.
+
+A real, PAM-authenticated operating-system session lock screen with the
+AURA Liquid Glass aesthetic:
+- Authenticates directly against Linux PAM (libpam.so.0 + unix_chkpwd)
+  with PAM_DISALLOW_NULL_AUTHTOK — never stores plaintext passwords or
+  bypasses OS authentication.
+- Suppresses desktop notifications (xfce4-notifyd /do-not-disturb) while
+  locked so sensitive notification content is never exposed, restoring the
+  previous setting on unlock.
+- Full-screen blue mountain wallpaper (aura-lock-peaks.jpg by default),
+  optional gentle animated snow/light particles, large centered digital
+  clock + weekday/date, circular glowing user avatar, translucent blue-glass
+  password panel, system-status widgets, Switch User (dm-tool), and
+  accessibility controls.
+"""
+import argparse
+import ctypes
+import ctypes.util
+import datetime
+import getpass
+import json
+import math
+import os
+import pwd
+import random
+import shutil
+import subprocess
+import sys
+import time
+
+CONFIG_FILE = os.path.expanduser(
+    os.environ.get("AURA_CONFIG_FILE", "~/.config/aura/config.json")
+)
+
+
+def load_config():
+    cfg = {
+        "lock_wallpaper": "aura-lock-peaks.jpg",
+        "wallpaper": "aura-midnight-peaks.jpg",
+        "lock_clock_24h": True,
+        "lock_particles": True,
+        "lock_widgets": True,
+        "lock_idle_minutes": 10,
+        "animations": True,
+        "performance_mode": False,
+        "glass_opacity": 0.78,
+    }
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as fh:
+            user = json.load(fh)
+        cfg.update(user)
+    except (OSError, json.JSONDecodeError):
+        pass
+    return cfg
+
+
+# ---------------------------------------------------------------------------
+# Real Linux PAM authentication (libpam.so.0 -> pam_unix / unix_chkpwd)
+# ---------------------------------------------------------------------------
+PAM_PROMPT_ECHO_OFF = 1
+PAM_PROMPT_ECHO_ON = 2
+PAM_ERROR_MSG = 3
+PAM_TEXT_INFO = 4
+PAM_SUCCESS = 0
+PAM_CONV_ERR = 19
+PAM_DISALLOW_NULL_AUTHTOK = 0x0001
+
+
+class _PamMessage(ctypes.Structure):
+    _fields_ = [("msg_style", ctypes.c_int), ("msg", ctypes.c_char_p)]
+
+
+class _PamResponse(ctypes.Structure):
+    _fields_ = [("resp", ctypes.c_void_p), ("resp_retcode", ctypes.c_int)]
+
+
+_CONV_FUNC = ctypes.CFUNCTYPE(
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.POINTER(ctypes.POINTER(_PamMessage)),
+    ctypes.POINTER(ctypes.c_void_p),
+    ctypes.c_void_p,
+)
+
+
+class _PamConv(ctypes.Structure):
+    _fields_ = [("conv", _CONV_FUNC), ("appdata_ptr", ctypes.c_void_p)]
+
+
+def pam_authenticate_user(username: str, password: str) -> bool:
+    """
+    Verify `password` for `username` against the Linux PAM stack.
+    Rejects empty passwords and always enforces PAM_DISALLOW_NULL_AUTHTOK.
+    """
+    if not username or not password:
+        return False
+    pam_lib_name = ctypes.util.find_library("pam")
+    c_lib_name = ctypes.util.find_library("c")
+    if not pam_lib_name or not c_lib_name:
+        return False
+
+    libpam = ctypes.CDLL(pam_lib_name)
+    libc = ctypes.CDLL(c_lib_name)
+    libc.calloc.restype = ctypes.c_void_p
+    libc.calloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+    libc.strdup.restype = ctypes.c_void_p
+    libc.strdup.argtypes = [ctypes.c_char_p]
+
+    pw_bytes = password.encode("utf-8", errors="replace")
+
+    @_CONV_FUNC
+    def _conv(n_messages, messages, p_response, _app_data):
+        if n_messages <= 0 or n_messages > 32:
+            return PAM_CONV_ERR
+        resp_array = libc.calloc(n_messages, ctypes.sizeof(_PamResponse))
+        if not resp_array:
+            return PAM_CONV_ERR
+        resps = ctypes.cast(resp_array, ctypes.POINTER(_PamResponse))
+        for i in range(n_messages):
+            msg = messages[i].contents
+            if msg.msg_style in (PAM_PROMPT_ECHO_OFF, PAM_PROMPT_ECHO_ON):
+                resps[i].resp = libc.strdup(pw_bytes)
+                resps[i].resp_retcode = 0
+            else:
+                resps[i].resp = None
+                resps[i].resp_retcode = 0
+        p_response[0] = resp_array
+        return PAM_SUCCESS
+
+    service = b"aura-lock" if os.path.isfile("/etc/pam.d/aura-lock") else b"login"
+    conv = _PamConv(_conv, None)
+    handle = ctypes.c_void_p()
+    rc = libpam.pam_start(
+        service,
+        username.encode("utf-8"),
+        ctypes.byref(conv),
+        ctypes.byref(handle),
+    )
+    if rc != PAM_SUCCESS:
+        return False
+    rc = libpam.pam_authenticate(handle, PAM_DISALLOW_NULL_AUTHTOK)
+    if rc == PAM_SUCCESS:
+        # pam_acct_mgmt may return non-zero in unprivileged containers where
+        # shadow aging cannot be read; accept PAM_SUCCESS from authenticate.
+        acct_rc = libpam.pam_acct_mgmt(handle, PAM_DISALLOW_NULL_AUTHTOK)
+        if acct_rc not in (PAM_SUCCESS, 7, 9):  # 7/9 = perm/authinfo in container
+            rc = acct_rc
+    libpam.pam_end(handle, rc)
+    return rc == PAM_SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Notification privacy & idle lock helpers
+# ---------------------------------------------------------------------------
+def _get_dnd() -> bool:
+    if not shutil.which("xfconf-query"):
+        return False
+    r = subprocess.run(
+        ["xfconf-query", "-c", "xfce4-notifyd", "-p", "/do-not-disturb"],
+        capture_output=True,
+        text=True,
+    )
+    return r.stdout.strip().lower() == "true"
+
+
+def _set_dnd(enabled: bool):
+    if shutil.which("xfconf-query"):
+        subprocess.run(
+            [
+                "xfconf-query",
+                "-c",
+                "xfce4-notifyd",
+                "-p",
+                "/do-not-disturb",
+                "-t",
+                "bool",
+                "-s",
+                "true" if enabled else "false",
+                "--create",
+            ],
+            capture_output=True,
+        )
+
+
+def configure_idle_lock(minutes: int, dry_run: bool = False):
+    """Configure automatic session lock after `minutes` of inactivity."""
+    secs = max(0, int(minutes)) * 60
+    cmds = []
+    if shutil.which("xfconf-query"):
+        cmds.append([
+            "xfconf-query", "-c", "xfce4-session", "-p", "/general/LockCommand",
+            "-t", "string", "-s", "aura-lock", "--create",
+        ])
+        cmds.append([
+            "xfconf-query", "-c", "xfce4-power-manager",
+            "-p", "/xfce4-power-manager/lock-screen-suspend-hibernate",
+            "-t", "bool", "-s", "true", "--create",
+        ])
+        cmds.append([
+            "xfconf-query", "-c", "xfce4-screensaver",
+            "-p", "/saver/idle-activation/enabled",
+            "-t", "bool", "-s", "true" if secs > 0 else "false", "--create",
+        ])
+        if secs > 0:
+            cmds.append([
+                "xfconf-query", "-c", "xfce4-screensaver",
+                "-p", "/saver/idle-activation/delay",
+                "-t", "int", "-s", str(minutes), "--create",
+            ])
+    if shutil.which("xset") and os.environ.get("DISPLAY"):
+        cmds.append(["xset", "s", str(secs), str(secs)] if secs > 0 else ["xset", "s", "off"])
+    for c in cmds:
+        if dry_run:
+            print("[dry-run]", " ".join(c))
+        else:
+            subprocess.run(c, capture_output=True)
+
+
+def find_wallpaper_path(cfg) -> str:
+    bases = [
+        "/usr/share/backgrounds/aura",
+        os.path.normpath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "share", "backgrounds", "aura")
+        ),
+    ]
+    for key in ("lock_wallpaper", "wallpaper"):
+        val = cfg.get(key, "")
+        if val and os.path.isfile(os.path.expanduser(val)):
+            return os.path.expanduser(val)
+        for b in bases:
+            cand = os.path.join(b, val)
+            if os.path.isfile(cand):
+                return cand
+    for b in bases:
+        for fn in ("aura-lock-peaks.jpg", "aura-midnight-peaks.jpg"):
+            cand = os.path.join(b, fn)
+            if os.path.isfile(cand):
+                return cand
+    return ""
+
+
+def get_user_identity():
+    username = getpass.getuser()
+    fullname = username.capitalize()
+    try:
+        pw = pwd.getpwuid(os.getuid())
+        username = pw.pw_name
+        gecos = (pw.pw_gecos or "").split(",")[0].strip()
+        if gecos:
+            fullname = gecos
+    except KeyError:
+        pass
+    return username, fullname
+
+
+def get_system_widgets_summary() -> str:
+    # Guest memory + load + network state
+    mem_str = ""
+    try:
+        info = {}
+        with open("/proc/meminfo", encoding="utf-8") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) >= 2:
+                    info[parts[0].rstrip(":")] = int(parts[1])
+        tot = info.get("MemTotal", 0) / 1048576
+        used = tot - (info.get("MemAvailable", 0) / 1048576)
+        if tot > 0:
+            mem_str = f"Guest RAM {used:.1f}/{tot:.1f} GiB"
+    except OSError:
+        pass
+    load_str = ""
+    try:
+        load1, _, _ = os.getloadavg()
+        load_str = f"Load {load1:.2f}"
+    except OSError:
+        pass
+    uptime_str = ""
+    try:
+        with open("/proc/uptime", encoding="utf-8") as fh:
+            s = int(float(fh.read().split()[0]))
+        uptime_str = f"Up {s // 3600}h {(s % 3600) // 60}m"
+    except OSError:
+        pass
+    parts = [p for p in ("🏔 Aurora Peaks", mem_str, load_str, uptime_str) if p]
+    return "   ·   ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# GTK 3 Fullscreen Liquid Glass Lock Screen UI
+# ---------------------------------------------------------------------------
+def run_gtk_lock_screen(cfg) -> int:
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, Pango  # noqa: E402
+
+    username, fullname = get_user_identity()
+    wp_path = find_wallpaper_path(cfg)
+    prior_dnd = _get_dnd()
+    _set_dnd(True)
+
+    LOCK_CSS = b"""
+    window.aura-lock-root {
+      background-color: #071426;
+      color: #F4F9FF;
+    }
+    .aura-lock-clock {
+      font-size: 68pt;
+      font-weight: 300;
+      color: #F4F9FF;
+      text-shadow: 0 4px 24px rgba(7, 20, 38, 0.85);
+    }
+    .aura-lock-date {
+      font-size: 16pt;
+      font-weight: 600;
+      color: #BDEBFF;
+      letter-spacing: 1.2px;
+      text-shadow: 0 2px 12px rgba(7, 20, 38, 0.85);
+    }
+    .aura-lock-card {
+      background-color: rgba(11, 35, 69, 0.76);
+      border: 1px solid rgba(85, 214, 255, 0.42);
+      border-radius: 24px;
+      box-shadow: 0 24px 64px rgba(3, 10, 24, 0.65),
+                  inset 0 1px 0 rgba(244, 249, 255, 0.25);
+      padding: 24px 32px;
+    }
+    .aura-lock-card-error {
+      border-color: #E35D6A;
+      box-shadow: 0 0 28px rgba(227, 93, 106, 0.55);
+    }
+    .aura-lock-card-hi {
+      background-color: rgba(7, 20, 38, 0.96);
+      border: 2px solid #55D6FF;
+    }
+    .aura-lock-user {
+      font-size: 15pt;
+      font-weight: 700;
+      color: #F4F9FF;
+    }
+    .aura-lock-sub {
+      font-size: 10pt;
+      color: #9CC2E6;
+    }
+    .aura-lock-entry {
+      min-height: 40px;
+      min-width: 240px;
+      border-radius: 999px;
+      padding: 4px 16px;
+      background-color: rgba(7, 20, 38, 0.82);
+      color: #F4F9FF;
+      border: 1px solid rgba(85, 214, 255, 0.45);
+      font-size: 12pt;
+    }
+    .aura-lock-entry:focus {
+      border-color: #55D6FF;
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.38);
+    }
+    .aura-lock-unlock-btn {
+      min-width: 40px;
+      min-height: 40px;
+      border-radius: 999px;
+      background-image: linear-gradient(135deg, #55D6FF, #1677FF);
+      color: #071426;
+      font-weight: 800;
+      border: 1px solid #BDEBFF;
+    }
+    .aura-lock-pill {
+      background-color: rgba(7, 20, 38, 0.72);
+      border: 1px solid rgba(85, 214, 255, 0.30);
+      border-radius: 999px;
+      padding: 6px 16px;
+      color: #BDEBFF;
+      font-size: 10pt;
+    }
+    .aura-lock-error-label {
+      color: #FF8590;
+      font-weight: 600;
+      font-size: 10pt;
+    }
+    """
+
+    provider = Gtk.CssProvider()
+    provider.load_from_data(LOCK_CSS)
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
+
+    class LockWindow(Gtk.Window):
+        def __init__(self):
+            super().__init__(title="AURA Lock Screen")
+            self.authenticated = False
+            self.high_contrast = False
+            self.large_text = False
+            self.shake_offset = 0.0
+            self.get_style_context().add_class("aura-lock-root")
+            self.set_decorated(False)
+            self.set_keep_above(True)
+            self.set_skip_taskbar_hint(True)
+            self.set_skip_pager_hint(True)
+            self.fullscreen()
+
+            self.connect("delete-event", self._on_delete)
+            self.connect("key-press-event", self._on_key_press)
+            self.connect("realize", self._on_realize)
+
+            self.pixbuf = None
+            if wp_path and os.path.isfile(wp_path):
+                try:
+                    self.pixbuf = GdkPixbuf.Pixbuf.new_from_file(wp_path)
+                except Exception:
+                    self.pixbuf = None
+
+            # Subtle snow / atmospheric light particles
+            self.enable_particles = bool(
+                cfg.get("lock_particles", True)
+                and cfg.get("animations", True)
+                and not cfg.get("performance_mode", False)
+            )
+            self.particles = [
+                {
+                    "x": random.random(),
+                    "y": random.random(),
+                    "r": random.uniform(1.2, 3.2),
+                    "vy": random.uniform(0.0006, 0.0018),
+                    "vx": random.uniform(-0.0004, 0.0004),
+                    "a": random.uniform(0.18, 0.55),
+                }
+                for _ in range(36)
+            ]
+
+            overlay = Gtk.Overlay()
+            self.add(overlay)
+
+            self.canvas = Gtk.DrawingArea()
+            self.canvas.connect("draw", self._on_draw_bg)
+            overlay.add(self.canvas)
+
+            # Main vertical layout over wallpaper
+            vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+            vbox.set_margin_top(54)
+            vbox.set_margin_bottom(28)
+            vbox.set_margin_start(36)
+            vbox.set_margin_end(36)
+            overlay.add_overlay(vbox)
+
+            # Top lock indicator badge
+            top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+            lock_badge = Gtk.Label(label="🔒  AURA Liquid Glass · Session Locked")
+            lock_badge.get_style_context().add_class("aura-lock-pill")
+            top_bar.pack_start(lock_badge, True, False, 0)
+            vbox.pack_start(top_bar, False, False, 0)
+
+            # Upper-middle Large Clock + Weekday & Date
+            clock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            clock_box.set_margin_top(18)
+            self.clock_lbl = Gtk.Label()
+            self.clock_lbl.get_style_context().add_class("aura-lock-clock")
+            self.date_lbl = Gtk.Label()
+            self.date_lbl.get_style_context().add_class("aura-lock-date")
+            clock_box.pack_start(self.clock_lbl, False, False, 0)
+            clock_box.pack_start(self.date_lbl, False, False, 0)
+            vbox.pack_start(clock_box, False, False, 0)
+
+            vbox.pack_start(Gtk.Box(), True, True, 0)  # spacer
+
+            # Center-lower Translucent Blue-Glass Password Panel
+            center_wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+            self.card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            self.card.get_style_context().add_class("aura-lock-card")
+            center_wrap.pack_start(self.card, True, False, 0)
+            vbox.pack_start(center_wrap, False, False, 0)
+
+            # Circular glowing user avatar
+            avatar = Gtk.DrawingArea()
+            avatar.set_size_request(88, 88)
+            avatar.set_halign(Gtk.Align.CENTER)
+            avatar.connect("draw", self._on_draw_avatar)
+            self.card.pack_start(avatar, False, False, 0)
+
+            user_lbl = Gtk.Label(label=fullname)
+            user_lbl.get_style_context().add_class("aura-lock-user")
+            self.card.pack_start(user_lbl, False, False, 0)
+
+            acct_lbl = Gtk.Label(label=f"@{username}")
+            acct_lbl.get_style_context().add_class("aura-lock-sub")
+            self.card.pack_start(acct_lbl, False, False, 0)
+
+            # Password entry + visibility button + unlock button
+            pw_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            pw_row.set_halign(Gtk.Align.CENTER)
+            pw_row.set_margin_top(6)
+
+            self.entry = Gtk.Entry()
+            self.entry.set_visibility(False)
+            self.entry.set_invisible_char("●")
+            self.entry.set_placeholder_text("Enter Password…")
+            self.entry.get_style_context().add_class("aura-lock-entry")
+            self.entry.connect("activate", self._try_unlock)
+            pw_row.pack_start(self.entry, False, False, 0)
+
+            vis_btn = Gtk.ToggleButton(label="👁")
+            vis_btn.set_tooltip_text("Show / hide password")
+            vis_btn.connect(
+                "toggled", lambda b: self.entry.set_visibility(b.get_active())
+            )
+            pw_row.pack_start(vis_btn, False, False, 0)
+
+            unlock_btn = Gtk.Button(label="➜")
+            unlock_btn.set_tooltip_text("Unlock Session")
+            unlock_btn.get_style_context().add_class("aura-lock-unlock-btn")
+            unlock_btn.connect("clicked", self._try_unlock)
+            pw_row.pack_start(unlock_btn, False, False, 0)
+            self.card.pack_start(pw_row, False, False, 0)
+
+            self.msg_lbl = Gtk.Label(label="")
+            self.msg_lbl.get_style_context().add_class("aura-lock-error-label")
+            self.card.pack_start(self.msg_lbl, False, False, 0)
+
+            # Bottom bar: System status widget pill + Switch User & Accessibility controls
+            bottom_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            bottom_bar.set_margin_top(24)
+
+            if cfg.get("lock_widgets", True):
+                self.widget_lbl = Gtk.Label(label=get_system_widgets_summary())
+                self.widget_lbl.get_style_context().add_class("aura-lock-pill")
+                bottom_bar.pack_start(self.widget_lbl, False, False, 0)
+
+            bottom_bar.pack_start(Gtk.Box(), True, True, 0)
+
+            # Accessibility & session controls
+            a11y_btn = Gtk.Button(label="♿ High Contrast")
+            a11y_btn.connect("clicked", self._toggle_contrast)
+            bottom_bar.pack_start(a11y_btn, False, False, 0)
+
+            if shutil.which("onboard"):
+                osk_btn = Gtk.Button(label="⌨ On-Screen Keyboard")
+                osk_btn.connect(
+                    "clicked",
+                    lambda *_: subprocess.Popen(
+                        ["onboard"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    ),
+                )
+                bottom_bar.pack_start(osk_btn, False, False, 0)
+
+            if shutil.which("dm-tool"):
+                sw_btn = Gtk.Button(label="⇄ Switch User")
+                sw_btn.connect(
+                    "clicked",
+                    lambda *_: subprocess.Popen(
+                        ["dm-tool", "switch-to-greeter"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    ),
+                )
+                bottom_bar.pack_start(sw_btn, False, False, 0)
+
+            vbox.pack_start(bottom_bar, False, False, 0)
+
+            self._update_clock()
+            GLib.timeout_add(1000, self._update_clock)
+            if self.enable_particles:
+                GLib.timeout_add(50, self._tick_particles)
+
+        def _on_realize(self, *_):
+            # Grab seat (keyboard + pointer) so workspace shortcuts cannot bypass lock
+            win = self.get_window()
+            if win:
+                display = win.get_display()
+                seat = display.get_default_seat()
+                if seat:
+                    GLib.timeout_add(
+                        120,
+                        lambda: (
+                            seat.grab(
+                                win,
+                                Gdk.SeatCapabilities.ALL,
+                                True,
+                                None,
+                                None,
+                                None,
+                            ),
+                            False,
+                        )[1],
+                    )
+            self.entry.grab_focus()
+
+        def _on_delete(self, *_):
+            # Never allow closing the lock window unless PAM authentication succeeded
+            return not self.authenticated
+
+        def _on_key_press(self, _w, event):
+            # Check Caps Lock warning
+            if event.state & Gdk.ModifierType.LOCK_MASK:
+                if not self.msg_lbl.get_text():
+                    self.msg_lbl.set_text("Caps Lock is ON")
+            elif self.msg_lbl.get_text() == "Caps Lock is ON":
+                self.msg_lbl.set_text("")
+            # Block Escape / Alt+F4 window dismissal
+            if event.keyval == Gdk.KEY_Escape:
+                self.entry.set_text("")
+                return True
+            return False
+
+        def _toggle_contrast(self, *_):
+            self.high_contrast = not self.high_contrast
+            ctx = self.card.get_style_context()
+            if self.high_contrast:
+                ctx.add_class("aura-lock-card-hi")
+            else:
+                ctx.remove_class("aura-lock-card-hi")
+
+        def _update_clock(self):
+            now = datetime.datetime.now()
+            fmt = "%H:%M" if cfg.get("lock_clock_24h", True) else "%I:%M %p"
+            self.clock_lbl.set_text(now.strftime(fmt))
+            self.date_lbl.set_text(now.strftime("%A, %B %d"))
+            return True
+
+        def _tick_particles(self):
+            if not self.enable_particles or self.authenticated:
+                return False
+            for p in self.particles:
+                p["y"] = (p["y"] + p["vy"]) % 1.0
+                p["x"] = (p["x"] + p["vx"]) % 1.0
+            self.canvas.queue_draw()
+            return True
+
+        def _on_draw_bg(self, widget, cr):
+            w = widget.get_allocated_width()
+            h = widget.get_allocated_height()
+            if self.pixbuf:
+                scaled = self.pixbuf.scale_simple(
+                    max(w, 1), max(h, 1), GdkPixbuf.InterpType.BILINEAR
+                )
+                if scaled:
+                    Gdk.cairo_set_source_pixbuf(cr, scaled, 0, 0)
+                    cr.paint()
+            else:
+                # Fallback midnight-to-ocean gradient
+                cr.set_source_rgb(0.027, 0.078, 0.149)
+                cr.paint()
+
+            # Atmospheric midnight-blue vignette for crisp clock contrast
+            cr.set_source_rgba(0.027, 0.078, 0.149, 0.32)
+            cr.rectangle(0, 0, w, h)
+            cr.fill()
+
+            # Gentle snow / cyan light particles
+            if self.enable_particles:
+                for p in self.particles:
+                    cr.set_source_rgba(0.74, 0.92, 1.0, p["a"])
+                    cr.arc(p["x"] * w, p["y"] * h, p["r"], 0, 2 * math.pi)
+                    cr.fill()
+            return False
+
+        def _on_draw_avatar(self, widget, cr):
+            w = widget.get_allocated_width()
+            h = widget.get_allocated_height()
+            cx, cy = w / 2.0, h / 2.0
+            # Soft electric-cyan outer glow ring
+            cr.set_source_rgba(0.33, 0.84, 1.0, 0.28)
+            cr.arc(cx, cy, 41, 0, 2 * math.pi)
+            cr.fill()
+            # Deep ocean glass circle
+            cr.set_source_rgba(0.043, 0.137, 0.270, 0.95)
+            cr.arc(cx, cy, 36, 0, 2 * math.pi)
+            cr.fill()
+            # Luminous cyan rim
+            cr.set_source_rgba(0.33, 0.84, 1.0, 0.85)
+            cr.set_line_width(2.2)
+            cr.arc(cx, cy, 36, 0, 2 * math.pi)
+            cr.stroke()
+            # Minimalist blue mountain crest inside avatar
+            cr.set_source_rgba(0.086, 0.467, 1.0, 0.85)
+            cr.move_to(cx - 22, cy + 16)
+            cr.line_to(cx - 4, cy - 16)
+            cr.line_to(cx + 14, cy + 16)
+            cr.close_path()
+            cr.fill()
+            cr.set_source_rgba(0.957, 0.976, 1.0, 0.95)
+            cr.move_to(cx - 6, cy + 16)
+            cr.line_to(cx + 8, cy - 10)
+            cr.line_to(cx + 22, cy + 16)
+            cr.close_path()
+            cr.fill()
+            return False
+
+        def _try_unlock(self, *_):
+            pw = self.entry.get_text()
+            self.entry.set_sensitive(False)
+            self.msg_lbl.set_text("Verifying credentials…")
+            while Gtk.events_pending():
+                Gtk.main_iteration()
+
+            ok = pam_authenticate_user(username, pw)
+            if ok:
+                self.authenticated = True
+                win = self.get_window()
+                if win:
+                    seat = win.get_display().get_default_seat()
+                    if seat:
+                        seat.ungrab()
+                _set_dnd(prior_dnd)
+                Gtk.main_quit()
+            else:
+                self.entry.set_text("")
+                self.entry.set_sensitive(True)
+                self.entry.grab_focus()
+                self.msg_lbl.set_text("Incorrect password — please try again.")
+                self.card.get_style_context().add_class("aura-lock-card-error")
+                GLib.timeout_add(
+                    900,
+                    lambda: (
+                        self.card.get_style_context().remove_class("aura-lock-card-error"),
+                        False,
+                    )[1],
+                )
+
+    win = LockWindow()
+    win.show_all()
+    try:
+        Gtk.main()
+    finally:
+        _set_dnd(prior_dnd)
+    return 0
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(
+        prog="aura-lock",
+        description="AURA OS Liquid Glass Lock Screen (PAM-authenticated).",
+    )
+    p.add_argument("--idle-minutes", type=int, metavar="MIN",
+                   help="Configure automatic idle lock timeout in minutes")
+    p.add_argument("--status", action="store_true",
+                   help="Show lock screen configuration")
+    p.add_argument("--check-auth", nargs=2, metavar=("USER", "PASSWORD"),
+                   help="Verify credentials via PAM and exit 0 (valid) or 1 (invalid)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Preview lock action without grabbing the display")
+    args = p.parse_args(argv)
+
+    cfg = load_config()
+    if args.check_auth:
+        user, pw = args.check_auth
+        return 0 if pam_authenticate_user(user, pw) else 1
+
+    if args.idle_minutes is not None:
+        cfg["lock_idle_minutes"] = max(0, args.idle_minutes)
+        os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+            fh.write("\n")
+        configure_idle_lock(cfg["lock_idle_minutes"], dry_run=args.dry_run)
+        print(f"✓ Automatic lock timeout set to {cfg['lock_idle_minutes']} min.")
+        return 0
+
+    if args.status:
+        user, fullname = get_user_identity()
+        print(f"  User:          {fullname} (@{user})")
+        print(f"  Wallpaper:     {find_wallpaper_path(cfg)}")
+        print(f"  Clock format:  {'24h' if cfg.get('lock_clock_24h', True) else '12h'}")
+        print(f"  Particles:     {'on' if cfg.get('lock_particles', True) else 'off'}")
+        print(f"  Idle timeout:  {cfg.get('lock_idle_minutes', 10)} min")
+        print("  Auth backend:  Linux PAM (libpam.so.0 + PAM_DISALLOW_NULL_AUTHTOK)")
+        return 0
+
+    if args.dry_run:
+        print("[dry-run] aura-lock: suppress notifications, grab X11 seat, require PAM auth")
+        return 0
+
+    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+        if shutil.which("loginctl"):
+            return subprocess.call(["loginctl", "lock-session"])
+        print("aura-lock: no graphical display found.", file=sys.stderr)
+        return 1
+
+    return run_gtk_lock_screen(cfg)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,20 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#274b8f"/>
-      <stop offset="1" stop-color="#4fa0e8"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#071426"/>
+      <stop offset="0.55" stop-color="#0B2345"/>
+      <stop offset="1" stop-color="#143E82"/>
     </linearGradient>
-    <clipPath id="sq"><rect x="6" y="6" width="244" height="244" rx="54"/></clipPath>
+    <radialGradient id="glow" cx="0.5" cy="0.28" r="0.62">
+      <stop offset="0" stop-color="#55D6FF" stop-opacity="0.42"/>
+      <stop offset="0.65" stop-color="#1677FF" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#071426" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glassFrost" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#F4F9FF" stop-opacity="0.96"/>
+      <stop offset="0.6" stop-color="#BDEBFF" stop-opacity="0.88"/>
+      <stop offset="1" stop-color="#89D4FF" stop-opacity="0.82"/>
+    </linearGradient>
+    <linearGradient id="glassBlue" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#55D6FF" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#1677FF" stop-opacity="0.90"/>
+    </linearGradient>
+    <linearGradient id="glassDeep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B2345" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#071426" stop-opacity="0.96"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F9FF"/>
+      <stop offset="0.5" stop-color="#D2E6F8"/>
+      <stop offset="1" stop-color="#8FB5D8"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F9FF" stop-opacity="0.30"/>
+      <stop offset="0.5" stop-color="#BDEBFF" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#55D6FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4F9FF" stop-opacity="0.68"/>
+      <stop offset="0.5" stop-color="#55D6FF" stop-opacity="0.48"/>
+      <stop offset="1" stop-color="#1677FF" stop-opacity="0.28"/>
+    </linearGradient>
+    <clipPath id="sq">
+      <rect x="6" y="6" width="244" height="244" rx="56"/>
+    </clipPath>
   </defs>
+  <!-- 3D base drop shadow -->
+  <rect x="10" y="14" width="236" height="234" rx="54" fill="#030914" opacity="0.46"/>
   <g clip-path="url(#sq)">
-    <rect x="6" y="6" width="244" height="244" fill="url(#g)"/>
-    <ellipse cx="128" cy="-30" rx="180" ry="110" fill="#ffffff" opacity="0.14"/>
-  </g>
-  <rect x="6" y="6" width="244" height="244" rx="54" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"/>
-  <g fill="#ffffff" stroke="#ffffff">
+    <rect x="6" y="6" width="244" height="244" fill="url(#bg)"/>
+    <circle cx="128" cy="76" r="136" fill="url(#glow)"/>
+    <path d="M6 6 H250 V96 C188 118 68 116 6 86 Z" fill="url(#sheen)"/>
 
-    <path fill="none" d="M64 82 H192 M64 128 H192 M64 174 H192"/>
-    <rect x="56" y="70" width="16" height="24" rx="4" fill="#ffffff" stroke="none"/><rect x="120" y="116" width="16" height="24" rx="4" fill="#ffffff" stroke="none"/><rect x="84" y="162" width="16" height="24" rx="4" fill="#ffffff" stroke="none"/>
+    <rect x="42" y="48" width="172" height="160" rx="22" fill="url(#glassDeep)" stroke="#55D6FF" stroke-opacity="0.5" stroke-width="2"/>
+    <rect x="64" y="74" width="128" height="22" rx="8" fill="#0E2E5C"/>
+    <rect x="64" y="74" width="96" height="22" rx="8" fill="url(#glassBlue)"/>
+    <rect x="64" y="116" width="128" height="22" rx="8" fill="#0E2E5C"/>
+    <rect x="64" y="116" width="68" height="22" rx="8" fill="#55D6FF"/>
+    <rect x="64" y="158" width="128" height="22" rx="8" fill="#0E2E5C"/>
+    <rect x="64" y="158" width="112" height="22" rx="8" fill="url(#glassFrost)"/>
+    <!-- Subtle inner bottom reflection -->
+    <path d="M36 244 H220" stroke="#55D6FF" stroke-width="1.5" stroke-opacity="0.35"/>
   </g>
+  <rect x="6" y="6" width="244" height="244" rx="56" fill="none" stroke="url(#rim)" stroke-width="2.4"/>
+  <rect x="8.5" y="8.5" width="239" height="239" rx="53.5" fill="none" stroke="#F4F9FF" stroke-opacity="0.15" stroke-width="1"/>
 </svg>

@@ -1,24 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#d6455b"/>
-      <stop offset="1" stop-color="#f2768a"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#071426"/>
+      <stop offset="0.55" stop-color="#0B2345"/>
+      <stop offset="1" stop-color="#1677FF"/>
     </linearGradient>
-    <clipPath id="sq"><rect x="6" y="6" width="244" height="244" rx="54"/></clipPath>
+    <radialGradient id="glow" cx="0.5" cy="0.28" r="0.62">
+      <stop offset="0" stop-color="#55D6FF" stop-opacity="0.42"/>
+      <stop offset="0.65" stop-color="#1677FF" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#071426" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glassFrost" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#F4F9FF" stop-opacity="0.96"/>
+      <stop offset="0.6" stop-color="#BDEBFF" stop-opacity="0.88"/>
+      <stop offset="1" stop-color="#89D4FF" stop-opacity="0.82"/>
+    </linearGradient>
+    <linearGradient id="glassBlue" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#55D6FF" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#1677FF" stop-opacity="0.90"/>
+    </linearGradient>
+    <linearGradient id="glassDeep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B2345" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#071426" stop-opacity="0.96"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F9FF"/>
+      <stop offset="0.5" stop-color="#D2E6F8"/>
+      <stop offset="1" stop-color="#8FB5D8"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F9FF" stop-opacity="0.30"/>
+      <stop offset="0.5" stop-color="#BDEBFF" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#55D6FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4F9FF" stop-opacity="0.68"/>
+      <stop offset="0.5" stop-color="#55D6FF" stop-opacity="0.48"/>
+      <stop offset="1" stop-color="#1677FF" stop-opacity="0.28"/>
+    </linearGradient>
+    <clipPath id="sq">
+      <rect x="6" y="6" width="244" height="244" rx="56"/>
+    </clipPath>
   </defs>
+  <!-- 3D base drop shadow -->
+  <rect x="10" y="14" width="236" height="234" rx="54" fill="#030914" opacity="0.46"/>
   <g clip-path="url(#sq)">
-    <rect x="6" y="6" width="244" height="244" fill="url(#g)"/>
-    <ellipse cx="128" cy="-30" rx="180" ry="110" fill="#ffffff" opacity="0.14"/>
-  </g>
-  <rect x="6" y="6" width="244" height="244" rx="54" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"/>
-  <g fill="#ffffff" stroke="#ffffff">
+    <rect x="6" y="6" width="244" height="244" fill="url(#bg)"/>
+    <circle cx="128" cy="76" r="136" fill="url(#glow)"/>
+    <path d="M6 6 H250 V96 C188 118 68 116 6 86 Z" fill="url(#sheen)"/>
 
-    <rect x="52" y="66" width="152" height="140" rx="14" fill="#ffffff" stroke="none"/>
-    <rect x="52" y="66" width="152" height="40" rx="14" fill="#b03047" stroke="none"/>
-    <path fill="none" d="M88 50 V84 M168 50 V84" stroke-width="14"/>
-    <circle cx="92" cy="140" r="10" fill="#d6455b" stroke="none"/><circle cx="128" cy="140" r="10" fill="#d6455b" stroke="none" opacity="0.55"/>
-    <circle cx="164" cy="140" r="10" fill="#d6455b" stroke="none" opacity="0.3"/><circle cx="92" cy="174" r="10" fill="#d6455b" stroke="none" opacity="0.3"/>
-    <circle cx="128" cy="174" r="10" fill="#d6455b" stroke="none"/><circle cx="164" cy="174" r="10" fill="#d6455b" stroke="none" opacity="0.55"/>
+    <rect x="46" y="54" width="164" height="158" rx="22" fill="#030A18" opacity="0.42"/>
+    <rect x="44" y="50" width="164" height="158" rx="22" fill="url(#glassFrost)" stroke="#F4F9FF" stroke-width="2"/>
+    <path d="M44 72 a22 22 0 0 1 22-22 h120 a22 22 0 0 1 22 22 v26 H44 Z" fill="url(#glassBlue)"/>
+    <rect x="82" y="38" width="12" height="28" rx="6" fill="url(#silver)"/>
+    <rect x="158" y="38" width="12" height="28" rx="6" fill="url(#silver)"/>
+    <text x="126" y="81" font-family="sans-serif" font-weight="bold" font-size="20" letter-spacing="3" text-anchor="middle" fill="#F4F9FF">AURA</text>
+    <!-- Date grid with glowing cyan active day -->
+    <rect x="68" y="114" width="28" height="24" rx="7" fill="#0B2345" opacity="0.25"/>
+    <rect x="112" y="114" width="28" height="24" rx="7" fill="#1677FF"/>
+    <rect x="156" y="114" width="28" height="24" rx="7" fill="#0B2345" opacity="0.25"/>
+    <rect x="68" y="152" width="28" height="24" rx="7" fill="#0B2345" opacity="0.25"/>
+    <rect x="112" y="152" width="28" height="24" rx="7" fill="#55D6FF"/>
+    <rect x="156" y="152" width="28" height="24" rx="7" fill="#0B2345" opacity="0.25"/>
+    <!-- Subtle inner bottom reflection -->
+    <path d="M36 244 H220" stroke="#55D6FF" stroke-width="1.5" stroke-opacity="0.35"/>
   </g>
+  <rect x="6" y="6" width="244" height="244" rx="56" fill="none" stroke="url(#rim)" stroke-width="2.4"/>
+  <rect x="8.5" y="8.5" width="239" height="239" rx="53.5" fill="none" stroke="#F4F9FF" stroke-opacity="0.15" stroke-width="1"/>
 </svg>

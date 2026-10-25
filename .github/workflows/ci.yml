@@ -20,7 +20,7 @@ jobs:
       - name: Python + shell syntax
         run: |
           python3 -m py_compile rootfs/usr/bin/aura rootfs/usr/bin/aura-* tools/*.py tests/*.py
-          for f in installer/*.sh build/*.sh tools/*.sh rootfs/usr/bin/celestia-tutorial rootfs/usr/share/aura/finalize.sh; do
+          for f in installer/*.sh build/*.sh rootfs/usr/bin/celestia-tutorial rootfs/usr/share/aura/finalize.sh rootfs/usr/share/aura/render-boot-assets.sh; do
             bash -n "$f"
           done
 

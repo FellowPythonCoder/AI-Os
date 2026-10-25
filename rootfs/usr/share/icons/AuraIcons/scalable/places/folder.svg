@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="fb" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5eb2f2"/><stop offset="1" stop-color="#2f7fe0"/>
+    <linearGradient id="fBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1677FF"/>
+      <stop offset="1" stop-color="#0B2345"/>
     </linearGradient>
-    <linearGradient id="ff" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#8fd0fb"/><stop offset="1" stop-color="#57acf2"/>
+    <linearGradient id="fFront" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#BDEBFF" stop-opacity="0.96"/>
+      <stop offset="0.45" stop-color="#55D6FF" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#1677FF" stop-opacity="0.95"/>
     </linearGradient>
   </defs>
-  <path d="M28 84 a12 12 0 0 1 12-12 h64 l18 20 h106 a12 12 0 0 1 12 12 v18 H28z" fill="url(#fb)"/>
-  <rect x="28" y="106" width="200" height="92" rx="12" fill="url(#ff)"/>
-  
+  <rect x="24" y="68" width="208" height="142" rx="22" fill="#040C1A" opacity="0.36"/>
+  <path d="M22 76 a18 18 0 0 1 18-18 h58 l18 18 h102 a18 18 0 0 1 18 18 v28 H22 Z" fill="url(#fBack)"/>
+  <rect x="36" y="84" width="184" height="24" rx="10" fill="#F4F9FF" opacity="0.9"/>
+  <rect x="22" y="96" width="212" height="110" rx="20" fill="url(#fFront)" stroke="#F4F9FF" stroke-opacity="0.7" stroke-width="2"/>
+  <path d="M28 98 H228" stroke="#F4F9FF" stroke-width="2" stroke-opacity="0.85"/>
+  <path d="M96 168 L124 132 L144 154 L158 138 L178 168 Z" fill="#071426" opacity="0.32"/>
 </svg>

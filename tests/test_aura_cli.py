@@ -123,6 +123,37 @@ class AuraCli(unittest.TestCase):
         r = self.cli("theme", "accent", "#12ab34")
         self.assertEqual(r.returncode, 0)
 
+    def test_liquid_glass_presets_and_opacity(self):
+        self.assertEqual(self.cli("glass", "frosted").returncode, 0)
+        cfg = json.load(open(os.path.join(
+            self.tmp, "config", "aura", "config.json"), encoding="utf-8"))
+        self.assertEqual(cfg["glass_preset"], "frosted")
+        glass_css = os.path.join(self.tmp, ".themes", "AuraCustom",
+                                 "gtk-3.0", "glass.css")
+        self.assertTrue(os.path.isfile(glass_css))
+        self.assertEqual(self.cli("glass", "opacity", "0.74").returncode, 0)
+        self.assertIn("0.74", open(glass_css, encoding="utf-8").read())
+        self.assertEqual(self.cli("glass", "performance").returncode, 0)
+        cfg = json.load(open(os.path.join(
+            self.tmp, "config", "aura", "config.json"), encoding="utf-8"))
+        self.assertTrue(cfg["performance_mode"])
+
+    def test_lock_screen_pam_and_cli(self):
+        lock_bin = os.path.join(REPO, "rootfs", "usr", "bin", "aura-lock")
+        self.assertTrue(os.path.isfile(lock_bin))
+        r = subprocess.run([sys.executable, lock_bin, "--status"],
+                           capture_output=True, text=True, timeout=15)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("PAM", r.stdout)
+        # Empty password must always be rejected
+        r_empty = subprocess.run([sys.executable, lock_bin, "--check-auth", "user", ""],
+                                 capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(r_empty.returncode, 0)
+        # Wrong password must always be rejected by PAM
+        r_bad = subprocess.run([sys.executable, lock_bin, "--check-auth", "root", "wrong-pass-xyz"],
+                               capture_output=True, text=True, timeout=15)
+        self.assertNotEqual(r_bad.returncode, 0)
+
 
 class Assets(unittest.TestCase):
     def test_all_generators_idempotent(self):
@@ -198,6 +229,28 @@ class Assets(unittest.TestCase):
             cp.read(os.path.join(apps_dir, fn), encoding="utf-8")
             icon = cp["Desktop Entry"].get("Icon", "")
             self.assertIn(icon, available, f"{fn} → missing icon {icon}")
+
+    def test_liquid_glass_wallpapers_and_icons_inventory(self):
+        wp_dir = os.path.join(REPO, "rootfs/usr/share/backgrounds/aura")
+        for wp in (
+            "aura-midnight-peaks.jpg", "aura-glacier-dawn.jpg",
+            "aura-aurora-ridge.jpg", "aura-crystal-valley.jpg",
+            "aura-liquid-waves.jpg", "aura-cyan-horizon.jpg",
+            "aura-minimal-gradient.jpg", "aura-lock-peaks.jpg",
+        ):
+            self.assertTrue(os.path.isfile(os.path.join(wp_dir, wp)), wp)
+        icons_dir = os.path.join(REPO, "rootfs/usr/share/icons/AuraIcons/scalable/apps")
+        for req in (
+            "aura-logo", "aura-finder", "celestia-shell", "aura-browser",
+            "aura-appcenter", "aura-settings", "aura-text", "aura-studio",
+            "aura-notes", "aura-calendar", "aura-calculator", "aura-monitor",
+            "aura-photos", "aura-media", "aura-transfer", "aura-archive",
+            "aura-screenshot", "aura-pdf", "aura-backup", "aura-taskmanager",
+            "aura-help", "aura-firewall", "aura-lock", "aura-quicksettings",
+            "user-trash",
+        ):
+            p = os.path.join(icons_dir, req + ".svg")
+            self.assertTrue(os.path.isfile(p), f"Missing icon: {req}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+aura-calendar — AURA OS Liquid Glass Calendar & Events.
+
+Provides an interactive monthly calendar (`Gtk.Calendar`) with persistent
+per-day agendas and reminders stored in ~/.local/share/aura/calendar.json.
+"""
+import datetime
+import json
+import os
+import sys
+
+STORE = os.path.expanduser("~/.local/share/aura/calendar.json")
+
+
+def load_events():
+    try:
+        with open(STORE, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_events(data):
+    os.makedirs(os.path.dirname(STORE), exist_ok=True)
+    with open(STORE, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+
+
+def main():
+    if "--dry-run" in sys.argv:
+        print("[dry-run] aura-calendar")
+        return 0
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk  # noqa: E402
+
+    events = load_events()
+
+    win = Gtk.Window(title="AURA Calendar")
+    win.set_default_size(720, 460)
+    try:
+        win.set_icon_name("aura-calendar")
+    except Exception:
+        pass
+
+    hb = Gtk.HeaderBar(title="AURA Calendar", subtitle="Schedule & Reminders")
+    hb.set_show_close_button(True)
+    win.set_titlebar(hb)
+
+    today_btn = Gtk.Button(label="Today")
+    hb.pack_start(today_btn)
+
+    paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+    paned.set_position(360)
+    win.add(paned)
+
+    left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    left.set_border_width(16)
+    cal = Gtk.Calendar()
+    left.pack_start(cal, True, True, 0)
+    paned.add1(left)
+
+    right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    right.set_border_width(16)
+    day_lbl = Gtk.Label()
+    day_lbl.set_xalign(0)
+    right.pack_start(day_lbl, False, False, 0)
+
+    listbox = Gtk.ListBox()
+    sw = Gtk.ScrolledWindow()
+    sw.add(listbox)
+    right.pack_start(sw, True, True, 0)
+
+    add_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+    entry = Gtk.Entry()
+    entry.set_placeholder_text("Add event or reminder…")
+    add_btn = Gtk.Button(label="Add")
+    add_btn.get_style_context().add_class("suggested-action")
+    add_row.pack_start(entry, True, True, 0)
+    add_row.pack_start(add_btn, False, False, 0)
+    right.pack_start(add_row, False, False, 0)
+    paned.add2(right)
+
+    def selected_iso():
+        y, m, d = cal.get_date()
+        return f"{y:04d}-{m + 1:02d}-{d:02d}"
+
+    def refresh():
+        iso = selected_iso()
+        day_lbl.set_markup(f"<b>Events for {iso}</b>")
+        for ch in list(listbox.get_children()):
+            listbox.remove(ch)
+        cal.clear_marks()
+        y, m, _ = cal.get_date()
+        prefix = f"{y:04d}-{m + 1:02d}-"
+        for k, items in events.items():
+            if k.startswith(prefix) and items:
+                try:
+                    cal.mark_day(int(k.split("-")[2]))
+                except ValueError:
+                    pass
+        for idx, text in enumerate(events.get(iso, [])):
+            r = Gtk.ListBoxRow()
+            hb_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            hb_row.set_border_width(6)
+            lbl = Gtk.Label(label="• " + text)
+            lbl.set_xalign(0)
+            del_b = Gtk.Button(label="✕")
+            del_b.get_style_context().add_class("flat")
+
+            def _del(_b, i=idx):
+                events.get(iso, []).pop(i)
+                save_events(events)
+                refresh()
+
+            del_b.connect("clicked", _del)
+            hb_row.pack_start(lbl, True, True, 0)
+            hb_row.pack_start(del_b, False, False, 0)
+            r.add(hb_row)
+            listbox.add(r)
+        listbox.show_all()
+
+    def add_event(*_):
+        txt = entry.get_text().strip()
+        if not txt:
+            return
+        iso = selected_iso()
+        events.setdefault(iso, []).append(txt)
+        save_events(events)
+        entry.set_text("")
+        refresh()
+
+    def go_today(*_):
+        now = datetime.date.today()
+        cal.select_month(now.month - 1, now.year)
+        cal.select_day(now.day)
+        refresh()
+
+    cal.connect("day-selected", lambda *_: refresh())
+    cal.connect("month-changed", lambda *_: refresh())
+    add_btn.connect("clicked", add_event)
+    entry.connect("activate", add_event)
+    today_btn.connect("clicked", go_today)
+
+    go_today()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

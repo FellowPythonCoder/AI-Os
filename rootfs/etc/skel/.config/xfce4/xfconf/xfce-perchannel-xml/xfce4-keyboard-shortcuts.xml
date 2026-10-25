@@ -17,8 +17,9 @@
       <property name="Print" type="string" value="xfce4-screenshooter -f -s ~/Pictures"/>
       <property name="&lt;Shift&gt;Print" type="string" value="xfce4-screenshooter -r -s ~/Pictures"/>
       <property name="&lt;Alt&gt;Print" type="string" value="xfce4-screenshooter -w -s ~/Pictures"/>
-      <!-- Session -->
-      <property name="&lt;Super&gt;l" type="string" value="xflock4"/>
+      <!-- Session & Quick Settings -->
+      <property name="&lt;Super&gt;l" type="string" value="aura-lock"/>
+      <property name="&lt;Super&gt;s" type="string" value="aura-quicksettings"/>
       <property name="&lt;Primary&gt;&lt;Shift&gt;Escape" type="string" value="xfce4-taskmanager"/>
       <!-- Clipboard history -->
       <property name="&lt;Super&gt;v" type="string" value="xfce4-popup-clipman"/>

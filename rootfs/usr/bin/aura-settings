@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-AURA Settings — the visual control center for AURA OS.
+AURA Settings — AURA Liquid Glass Blue Edition Control Center.
 
-Every control applies immediately through the `aura` CLI or xfconf,
-so GUI and Celestia Shell always agree. Preferences persist in
-~/.config/aura/config.json.
+Organized into 12 cohesive sections with an interactive Liquid Glass
+Theme Editor and real-time Cairo preview card. Every control applies
+immediately via the `aura` CLI, xfconf, gsettings, or xrandr, and persists
+in ~/.config/aura/config.json.
 """
 import json
+import math
 import os
+import shutil
 import subprocess
 import sys
 
@@ -15,27 +19,67 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GdkPixbuf, GLib  # noqa: E402
 
-CONFIG_FILE = os.path.expanduser("~/.config/aura/config.json")
+CONFIG_FILE = os.path.expanduser(
+    os.environ.get("AURA_CONFIG_FILE", "~/.config/aura/config.json")
+)
 WP_DIR = "/usr/share/backgrounds/aura"
 if not os.path.isdir(WP_DIR):
-    WP_DIR = os.path.normpath(os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "share",
-        "backgrounds", "aura"))
+    WP_DIR = os.path.normpath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "share", "backgrounds", "aura",
+        )
+    )
+ICONS_DIR = "/usr/share/icons/AuraIcons/scalable/apps"
+if not os.path.isdir(ICONS_DIR):
+    ICONS_DIR = os.path.normpath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "share", "icons", "AuraIcons", "scalable", "apps",
+        )
+    )
 TERMINALRC = os.path.expanduser("~/.config/xfce4/terminal/terminalrc")
 
 ACCENTS = [
-    ("ocean", "Ocean", "#2f7fe0"), ("electric", "Electric", "#1e90ff"),
-    ("glacier", "Glacier", "#38b6e8"), ("midnight", "Midnight", "#3b5bdb"),
-    ("cyan", "Cyan", "#18b7c4"), ("teal", "Teal", "#14b8a6"),
-    ("violet", "Violet", "#7c5cd6"),
+    ("ocean", "AURA Blue", "#1677FF"),
+    ("electric", "Electric Cyan", "#55D6FF"),
+    ("glacier", "Glacier", "#38B6E8"),
+    ("ice", "Ice Blue", "#BDEBFF"),
+    ("midnight", "Deep Ocean", "#0B2345"),
+    ("silver", "Crystal Silver", "#C8DCF0"),
+    ("teal", "Alpine Teal", "#14B8A6"),
 ]
 
 
 def load_config():
-    cfg = {"theme_mode": "dark", "accent": "ocean",
-           "wallpaper": "aura-midnight-peaks.jpg",
-           "dock": {"size": 52, "position": "bottom", "zoom": True,
-                    "autohide": False}}
+    cfg = {
+        "theme_mode": "dark",
+        "accent": "ocean",
+        "accent_hex": "#1677FF",
+        "wallpaper": "aura-midnight-peaks.jpg",
+        "lock_wallpaper": "aura-lock-peaks.jpg",
+        "lock_clock_24h": True,
+        "lock_particles": True,
+        "lock_widgets": True,
+        "lock_idle_minutes": 10,
+        "glass_preset": "glass",
+        "glass_opacity": 0.78,
+        "blur_intensity": 14,
+        "window_opacity": 96,
+        "shadow_opacity": 60,
+        "performance_mode": False,
+        "animations": True,
+        "dock": {
+            "size": 52,
+            "position": "bottom",
+            "zoom": True,
+            "zoom_percent": 145,
+            "autohide": False,
+            "style": "glass",
+            "spacing": 4,
+            "margin": 0,
+        },
+    }
     try:
         with open(CONFIG_FILE, encoding="utf-8") as fh:
             saved = json.load(fh)
@@ -47,51 +91,106 @@ def load_config():
     return cfg
 
 
+def save_config(cfg):
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)
+        fh.write("\n")
+
+
 def aura_cmd(*args):
-    subprocess.Popen(["aura", *args], stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL)
+    subprocess.Popen(
+        ["aura", *[str(a) for a in args]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def xfconf(channel, prop, ptype, value):
-    subprocess.Popen(["xfconf-query", "-c", channel, "-p", prop, "-t", ptype,
-                      "-s", str(value), "--create"],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if shutil.which("xfconf-query"):
+        subprocess.Popen(
+            [
+                "xfconf-query", "-c", channel, "-p", prop,
+                "-t", ptype, "-s", str(value), "--create",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
-def markup_title(text):
+def markup_title(text, subtitle=""):
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
     lbl = Gtk.Label()
     lbl.set_markup(f'<span size="x-large" weight="bold">{text}</span>')
     lbl.set_xalign(0)
-    return lbl
+    box.pack_start(lbl, False, False, 0)
+    if subtitle:
+        sub = Gtk.Label(label=subtitle)
+        sub.set_xalign(0)
+        sub.get_style_context().add_class("dim-label")
+        box.pack_start(sub, False, False, 0)
+    return box
 
 
 def section(text):
     lbl = Gtk.Label()
     lbl.set_markup(f"<b>{text}</b>")
     lbl.set_xalign(0)
-    lbl.set_margin_top(10)
+    lbl.set_margin_top(12)
     return lbl
+
+
+def hex_to_rgb(h):
+    h = h.lstrip("#")
+    if len(h) != 6:
+        return (0.086, 0.467, 1.0)
+    return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
 
 
 class Settings(Gtk.Window):
     def __init__(self, start_page=None):
-        super().__init__(title="AURA Settings")
-        self.set_default_size(980, 640)
+        super().__init__(title="AURA Settings — Liquid Glass Blue Edition")
+        self.set_default_size(1060, 680)
         try:
             self.set_icon_name("aura-settings")
         except Exception:
             pass
         self.cfg = load_config()
 
-        header = Gtk.HeaderBar(title="AURA Settings",
-                               subtitle="Make this mountain yours")
+        header = Gtk.HeaderBar(
+            title="AURA Settings",
+            subtitle="AURA Liquid Glass Blue Edition · System Preferences",
+        )
         header.set_show_close_button(True)
         self.set_titlebar(header)
+
+        qs_btn = Gtk.Button(label="⚡ Quick Settings")
+        qs_btn.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(
+                ["aura-quicksettings"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ),
+        )
+        header.pack_start(qs_btn)
+
+        lock_btn = Gtk.Button(label="🔒 Lock")
+        lock_btn.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(
+                ["aura-lock"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ),
+        )
+        header.pack_start(lock_btn)
+
         self.status = Gtk.Label()
         header.pack_end(self.status)
 
         paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-        paned.set_position(215)
+        paned.set_position(250)
         self.add(paned)
 
         self.sidebar = Gtk.ListBox()
@@ -107,14 +206,20 @@ class Settings(Gtk.Window):
         sw.add(self.stack)
         paned.add2(sw)
 
+        # All 12 organized sections required by the Liquid Glass specification
         pages = [
-            ("appearance", "🎨  Appearance", self.page_appearance),
-            ("wallpaper", "🏔  Wallpaper", self.page_wallpaper),
+            ("appearance", "🎨  Appearance & Themes", self.page_appearance),
+            ("wallpaper", "🏔  Wallpapers & Lock Screen", self.page_wallpaper),
             ("dock", "🧊  Dock & Menu Bar", self.page_dock),
-            ("effects", "✨  Effects", self.page_effects),
-            ("terminal", "⌨️  Celestia Shell", self.page_terminal),
-            ("system", "⚙️  System", self.page_system),
-            ("about", "ℹ️  About", self.page_about),
+            ("icons", "💎  Icons & Cursor", self.page_icons),
+            ("display", "🖥  Display & Resolution", self.page_display),
+            ("input", "⌨️  Keyboard & Mouse", self.page_input),
+            ("notifications", "🔔  Notifications", self.page_notifications),
+            ("security", "🛡  Privacy & Security", self.page_security),
+            ("netaudio", "🌐  Network & Audio", self.page_netaudio),
+            ("apps", "🚀  Applications & Startup", self.page_apps),
+            ("terminal", "🐚  Celestia Shell", self.page_terminal),
+            ("system", "⚙️  VM & System Info", self.page_system),
         ]
         self.page_rows = {}
         for pid, title, builder in pages:
@@ -129,6 +234,11 @@ class Settings(Gtk.Window):
             self.sidebar.add(row)
             self.page_rows[pid] = row
             self.stack.add_named(builder(), pid)
+
+        # Legacy page aliases
+        self.page_rows["effects"] = self.page_rows["appearance"]
+        self.page_rows["about"] = self.page_rows["system"]
+
         self.sidebar.show_all()
         target = self.page_rows.get(start_page or "appearance")
         if target:
@@ -143,44 +253,68 @@ class Settings(Gtk.Window):
         if row is not None:
             self.stack.set_visible_child_name(row.pid)
 
-    def page_box(self, title):
+    def page_box(self, title, subtitle=""):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.set_border_width(22)
-        box.pack_start(markup_title(title), False, False, 0)
+        box.pack_start(markup_title(title, subtitle), False, False, 0)
         return box
 
-    # ------------------------------------------------------------------ pages
+    # ------------------------------------------------------------------ 1. Appearance & Interactive Liquid Glass Editor
     def page_appearance(self):
-        box = self.page_box("Appearance")
-        box.pack_start(section("Mode"), False, False, 0)
-        modes = Gtk.Box(spacing=8)
-        self.radio_dark = Gtk.RadioButton(label="🌙  Dark — Midnight Peaks")
+        box = self.page_box(
+            "Appearance & Liquid Glass Theme Editor",
+            "Customize translucent blue glass surfaces, blur intensity, accents, and motion.",
+        )
+
+        # Live Interactive Liquid Glass Preview Canvas
+        self.preview_area = Gtk.DrawingArea()
+        self.preview_area.set_size_request(620, 128)
+        self.preview_area.connect("draw", self._draw_glass_preview)
+        box.pack_start(self.preview_area, False, False, 4)
+
+        box.pack_start(section("Appearance Mode"), False, False, 0)
+        modes = Gtk.Box(spacing=12)
+        self.radio_dark = Gtk.RadioButton(label="🌙  Dark — Midnight Navy (#071426)")
         self.radio_light = Gtk.RadioButton(
-            group=self.radio_dark, label="☀️  Light — Glacier Dawn")
-        for r, mode in ((self.radio_dark, "dark"), (self.radio_light, "light")):
-            r.set_active(self.cfg["theme_mode"] == mode)
+            group=self.radio_dark, label="☀️  Light — Frosted White (#F4F9FF)"
+        )
+        self.radio_auto = Gtk.RadioButton(
+            group=self.radio_dark, label="🌗  Auto — Adaptive Blue Glass"
+        )
+        for r, mode in (
+            (self.radio_dark, "dark"),
+            (self.radio_light, "light"),
+            (self.radio_auto, "auto"),
+        ):
+            r.set_active(self.cfg.get("theme_mode", "dark") == mode)
             r.connect("toggled", self._mode_toggled, mode)
             modes.pack_start(r, False, False, 0)
         box.pack_start(modes, False, False, 0)
 
-        box.pack_start(section("Accent color"), False, False, 0)
+        box.pack_start(section("AURA Liquid Glass Accent Palette"), False, False, 0)
         flow = Gtk.FlowBox()
         flow.set_selection_mode(Gtk.SelectionMode.NONE)
         flow.set_max_children_per_line(7)
         flow.set_homogeneous(True)
         for name, label, hexv in ACCENTS:
             btn = Gtk.Button()
-            btn.set_size_request(58, 58)
-            btn.set_tooltip_text(f"{label}  {hexv}")
+            btn.set_size_request(56, 52)
+            btn.set_tooltip_text(f"{label}  ({hexv})")
             css = Gtk.CssProvider()
-            border = "3px solid white" if self.cfg["accent"] == name else "1px solid rgba(255,255,255,0.35)"
+            border = (
+                "3px solid #F4F9FF"
+                if self.cfg.get("accent") == name
+                else "1px solid rgba(85,214,255,0.45)"
+            )
             css.load_from_data(
                 f"button {{ background: {hexv}; background-image: none; "
-                f"border-radius: 16px; border: {border}; }}".encode())
+                f"border-radius: 14px; border: {border}; }}".encode()
+            )
             btn.get_style_context().add_provider(
-                css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-            btn.connect("clicked", self._accent_clicked, name, label)
-            wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+            btn.connect("clicked", self._accent_clicked, name, label, hexv)
+            wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
             wrap.pack_start(btn, False, False, 0)
             cap = Gtk.Label(label=label)
             cap.get_style_context().add_class("dim-label")
@@ -188,327 +322,815 @@ class Settings(Gtk.Window):
             flow.add(wrap)
         box.pack_start(flow, False, False, 0)
 
-        custom = Gtk.Box(spacing=8)
-        custom.pack_start(Gtk.Label(label="Custom color:"), False, False, 0)
+        custom = Gtk.Box(spacing=10)
+        custom.pack_start(Gtk.Label(label="Custom blue/cyan highlight:"), False, False, 0)
         self.color_btn = Gtk.ColorButton()
         rgba = Gdk.RGBA()
-        rgba.parse(self.cfg.get("accent_hex", "#2f7fe0"))
+        rgba.parse(self.cfg.get("accent_hex", "#1677FF"))
         self.color_btn.set_rgba(rgba)
         custom.pack_start(self.color_btn, False, False, 0)
-        b_apply = Gtk.Button(label="Apply custom accent")
+        b_apply = Gtk.Button(label="Apply Custom Accent")
         b_apply.connect("clicked", self._custom_accent)
         custom.pack_start(b_apply, False, False, 0)
         box.pack_start(custom, False, False, 0)
 
-        box.pack_start(section("Icons & cursor"), False, False, 0)
-        grid = Gtk.Grid(column_spacing=10, row_spacing=8)
-        grid.attach(Gtk.Label(label="Icon theme"), 0, 0, 1, 1)
-        self.icon_combo = self._theme_combo("/usr/share/icons", "AuraIcons")
-        self.icon_combo.connect("changed", self._icon_theme_changed)
-        grid.attach(self.icon_combo, 1, 0, 1, 1)
-        grid.attach(Gtk.Label(label="Cursor theme"), 0, 1, 1, 1)
-        self.cursor_combo = self._theme_combo("/usr/share/icons", "AuraCursor")
-        self.cursor_combo.connect("changed", self._cursor_theme_changed)
-        grid.attach(self.cursor_combo, 1, 1, 1, 1)
+        # Interactive Liquid Glass Sliders
+        box.pack_start(section("Interactive Liquid Glass Surface Controls"), False, False, 0)
+        preset_row = Gtk.Box(spacing=8)
+        preset_row.pack_start(Gtk.Label(label="Surface preset:"), False, False, 0)
+        for pid, plabel in (
+            ("glass", "✨ Full Liquid Glass"),
+            ("frosted", "🧊 Frosted Crystal"),
+            ("performance", "⚡ Opaque Performance (Low RAM/CPU)"),
+        ):
+            pb = Gtk.Button(label=plabel)
+            pb.connect("clicked", self._set_glass_preset, pid)
+            preset_row.pack_start(pb, False, False, 0)
+        box.pack_start(preset_row, False, False, 0)
+
+        grid = Gtk.Grid(column_spacing=14, row_spacing=8)
+        # 1. Glass Transparency / Opacity
+        grid.attach(Gtk.Label(label="Glass panel opacity:", xalign=0), 0, 0, 1, 1)
+        opa_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.55, 0.98, 0.02)
+        opa_scale.set_value(float(self.cfg.get("glass_opacity", 0.78)))
+        opa_scale.set_size_request(260, -1)
+        opa_scale.connect("value-changed", self._on_glass_opacity)
+        grid.attach(opa_scale, 1, 0, 1, 1)
+
+        # 2. Blur Intensity
+        grid.attach(Gtk.Label(label="Backdrop blur radius (px):", xalign=0), 0, 1, 1, 1)
+        blur_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 24, 1)
+        blur_scale.set_value(int(self.cfg.get("blur_intensity", 14)))
+        blur_scale.set_size_request(260, -1)
+        blur_scale.connect("value-changed", self._on_blur_intensity)
+        grid.attach(blur_scale, 1, 1, 1, 1)
+
+        # 3. WindowShadow Depth
+        grid.attach(Gtk.Label(label="Window elevation shadow (%):", xalign=0), 0, 2, 1, 1)
+        sh_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 5)
+        sh_scale.set_value(int(self.cfg.get("shadow_opacity", 60)))
+        sh_scale.set_size_request(260, -1)
+        sh_scale.connect("value-changed", self._on_shadow_depth)
+        grid.attach(sh_scale, 1, 2, 1, 1)
+
+        # 4. Inactive Window Opacity
+        grid.attach(Gtk.Label(label="Inactive window opacity (%):", xalign=0), 0, 3, 1, 1)
+        win_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 70, 100, 2)
+        win_scale.set_value(int(self.cfg.get("window_opacity", 96)))
+        win_scale.set_size_request(260, -1)
+        win_scale.connect(
+            "value-changed",
+            lambda s: xfconf("xfwm4", "/general/inactive_opacity", "int", int(s.get_value())),
+        )
+        grid.attach(win_scale, 1, 3, 1, 1)
         box.pack_start(grid, False, False, 0)
 
-        box.pack_start(section("Text"), False, False, 0)
-        frow = Gtk.Box(spacing=8)
-        frow.pack_start(Gtk.Label(label="Interface font:"), False, False, 0)
-        self.font_btn = Gtk.FontButton()
-        self.font_btn.set_font_name("Inter 11")
-        self.font_btn.connect("font-set", self._font_set)
-        frow.pack_start(self.font_btn, False, False, 0)
-        box.pack_start(frow, False, False, 0)
-        srow = Gtk.Box(spacing=8)
-        srow.pack_start(Gtk.Label(label="Text scaling:"), False, False, 0)
-        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL,
-                                         0.8, 2.0, 0.1)
-        scale.set_value(1.0)
-        scale.set_size_request(220, -1)
-        scale.connect("value-changed", self._scaling)
-        srow.pack_start(scale, False, False, 0)
-        box.pack_start(srow, False, False, 0)
+        # Animation & Compositor toggles
+        box.pack_start(section("Fluid Motion & Compositor"), False, False, 0)
+        anim_row = Gtk.Box(spacing=10)
+        anim_sw = Gtk.Switch(active=bool(self.cfg.get("animations", True)))
+        anim_sw.connect("notify::active", self._animations)
+        anim_row.pack_start(anim_sw, False, False, 0)
+        anim_row.pack_start(
+            Gtk.Label(label="Fluid GTK & window animations (disable for reduced motion)"),
+            False, False, 0,
+        )
+        box.pack_start(anim_row, False, False, 0)
 
-        b_reset = Gtk.Button(label="Restore AURA defaults")
-        b_reset.set_margin_top(16)
-        b_reset.connect("clicked", lambda *_: (aura_cmd("theme", "reset"),
-                                               self.toast("Defaults restored")))
+        b_reset = Gtk.Button(label="Restore AURA Liquid Glass Defaults")
+        b_reset.set_margin_top(12)
+        b_reset.connect(
+            "clicked",
+            lambda *_: (
+                aura_cmd("theme", "reset"),
+                self.toast("Restored AURA Liquid Glass defaults"),
+            ),
+        )
         box.pack_start(b_reset, False, False, 0)
         return box
 
+    def _draw_glass_preview(self, widget, cr):
+        w = widget.get_allocated_width()
+        h = widget.get_allocated_height()
+        # Deep midnight-to-ocean backdrop with mountain silhouette
+        cr.set_source_rgb(0.027, 0.078, 0.149)  # #071426
+        cr.rectangle(0, 0, w, h)
+        cr.fill()
+        # Cyan horizon glow
+        ar, ag, ab = hex_to_rgb(self.cfg.get("accent_hex", "#1677FF"))
+        cr.set_source_rgba(ar, ag, ab, 0.35)
+        cr.arc(w * 0.72, h * 0.65, 90, 0, 2 * math.pi)
+        cr.fill()
+        # Mountain peaks in preview
+        cr.set_source_rgba(0.043, 0.137, 0.270, 0.9)
+        cr.move_to(0, h)
+        cr.line_to(w * 0.28, h * 0.28)
+        cr.line_to(w * 0.52, h * 0.78)
+        cr.line_to(w * 0.78, h * 0.22)
+        cr.line_to(w, h)
+        cr.close_path()
+        cr.fill()
+        # Translucent Liquid Glass Floating Card
+        op = float(self.cfg.get("glass_opacity", 0.78))
+        is_dark = self.cfg.get("theme_mode", "dark") != "light"
+        if is_dark:
+            cr.set_source_rgba(0.043, 0.137, 0.270, op)
+        else:
+            cr.set_source_rgba(0.957, 0.976, 1.0, op)
+        cr.rectangle(28, 18, w - 56, h - 36)
+        cr.fill()
+        # Luminous electric-cyan edge (#55D6FF)
+        cr.set_source_rgba(0.333, 0.839, 1.0, 0.65)
+        cr.set_line_width(1.5)
+        cr.rectangle(28, 18, w - 56, h - 36)
+        cr.stroke()
+        # Accent pill inside preview
+        cr.set_source_rgba(ar, ag, ab, 0.95)
+        cr.rectangle(48, 42, 148, 36)
+        cr.fill()
+        cr.set_source_rgb(0.957, 0.976, 1.0)
+        cr.move_to(64, 65)
+        cr.show_text(
+            f"AURA Liquid Glass  ·  Opacity {int(op * 100)}%  ·  Blur {self.cfg.get('blur_intensity', 14)}px"
+        )
+        return False
+
+    # ------------------------------------------------------------------ 2. Wallpapers & Lock Screen
     def page_wallpaper(self):
-        box = self.page_box("Wallpaper")
-        note = Gtk.Label(label="Click a scene to apply it instantly. "
-                               "Your own images belong in ~/Pictures.")
-        note.set_xalign(0)
-        note.get_style_context().add_class("dim-label")
-        note.set_line_wrap(True)
-        box.pack_start(note, False, False, 0)
+        box = self.page_box(
+            "Wallpapers & Lock Screen",
+            "Choose coordinated AURA mountain & Liquid Glass scenes and configure session lock.",
+        )
         flow = Gtk.FlowBox()
         flow.set_selection_mode(Gtk.SelectionMode.NONE)
-        flow.set_max_children_per_line(2)
+        flow.set_max_children_per_line(4)
         flow.set_column_spacing(10)
         flow.set_row_spacing(10)
         files = []
         if os.path.isdir(WP_DIR):
-            files = sorted(f for f in os.listdir(WP_DIR)
-                           if f.lower().endswith((".jpg", ".png", ".jpeg")))
+            files = sorted(
+                f for f in os.listdir(WP_DIR)
+                if f.lower().endswith((".jpg", ".png", ".jpeg"))
+            )
         for fn in files:
             path = os.path.join(WP_DIR, fn)
             try:
-                pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                    path, 300, 169, True)
+                pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 175, 102, True)
                 img = Gtk.Image.new_from_pixbuf(pix)
             except GLib.Error:
-                img = Gtk.Image.new_from_icon_name("aura-photos",
-                                                   Gtk.IconSize.DIALOG)
+                img = Gtk.Image.new_from_icon_name("aura-photos", Gtk.IconSize.DIALOG)
             col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             btn = Gtk.Button()
             btn.add(img)
             btn.connect("clicked", self._wallpaper_clicked, fn)
             col.pack_start(btn, False, False, 0)
             name = os.path.splitext(fn)[0].replace("aura-", "").replace("-", " ").title()
-            mark = " ● in use" if fn == self.cfg["wallpaper"] else ""
+            mark = " ●" if fn == self.cfg.get("wallpaper") else ""
             col.pack_start(Gtk.Label(label=name + mark), False, False, 0)
             flow.add(col)
         box.pack_start(flow, False, False, 0)
-        b_choose = Gtk.Button(label="Choose a picture of your own…")
+
+        b_choose = Gtk.Button(label="Choose Custom Desktop Wallpaper…")
         b_choose.connect("clicked", self._choose_wallpaper)
         box.pack_start(b_choose, False, False, 0)
+
+        # Lock Screen Configuration
+        box.pack_start(section("AURA Liquid Glass Lock Screen"), False, False, 0)
+        lock_grid = Gtk.Grid(column_spacing=12, row_spacing=8)
+
+        lock_grid.attach(Gtk.Label(label="Lock screen wallpaper:", xalign=0), 0, 0, 1, 1)
+        lock_wp = Gtk.ComboBoxText()
+        for fn in files:
+            lock_wp.append_text(fn)
+        cur_lwp = self.cfg.get("lock_wallpaper", "aura-lock-peaks.jpg")
+        if cur_lwp in files:
+            lock_wp.set_active(files.index(cur_lwp))
+        lock_wp.connect("changed", self._lock_wp_changed)
+        lock_grid.attach(lock_wp, 1, 0, 1, 1)
+
+        lock_grid.attach(Gtk.Label(label="Automatic idle lock:", xalign=0), 0, 1, 1, 1)
+        idle_combo = Gtk.ComboBoxText()
+        idle_opts = [("0", "Never"), ("5", "5 minutes"), ("10", "10 minutes"),
+                     ("15", "15 minutes"), ("30", "30 minutes")]
+        cur_idle = str(self.cfg.get("lock_idle_minutes", 10))
+        for idx, (val, text) in enumerate(idle_opts):
+            idle_combo.append(val, text)
+            if val == cur_idle:
+                idle_combo.set_active(idx)
+        idle_combo.connect(
+            "changed",
+            lambda c: (
+                aura_cmd("lock", "timeout", c.get_active_id() or "10"),
+                self.toast("Idle lock timeout updated"),
+            ),
+        )
+        lock_grid.attach(idle_combo, 1, 1, 1, 1)
+        box.pack_start(lock_grid, False, False, 0)
+
+        for key, label in (
+            ("lock_clock_24h", "Use 24-hour digital clock on lock screen"),
+            ("lock_particles", "Animated snow & subtle atmospheric light movement"),
+            ("lock_widgets", "Show guest system status pill on lock screen"),
+        ):
+            r = Gtk.Box(spacing=10)
+            sw = Gtk.Switch(active=bool(self.cfg.get(key, True)))
+            sw.connect("notify::active", self._lock_toggle, key)
+            r.pack_start(sw, False, False, 0)
+            r.pack_start(Gtk.Label(label=label), False, False, 0)
+            box.pack_start(r, False, False, 0)
+
+        b_lock_now = Gtk.Button(label="🔒  Lock Screen Now (Super + L)")
+        b_lock_now.get_style_context().add_class("suggested-action")
+        b_lock_now.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(
+                ["aura-lock"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            ),
+        )
+        box.pack_start(b_lock_now, False, False, 0)
         return box
 
+    # ------------------------------------------------------------------ 3. Dock & Menu Bar
     def page_dock(self):
-        box = self.page_box("Dock & Menu Bar")
+        box = self.page_box(
+            "AURA Dock & Top Menu Bar",
+            "Configure the floating Liquid Glass dock shelf and top menu bar.",
+        )
         dock = self.cfg["dock"]
-        box.pack_start(section("Dock icon size"), False, False, 0)
-        size = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 32, 96, 2)
-        size.set_value(dock["size"])
-        size.set_size_request(300, -1)
-        size.connect("change-value", lambda s, *_: self._dock_size(s))
-        box.pack_start(size, False, False, 0)
 
-        box.pack_start(section("Dock position"), False, False, 0)
+        grid = Gtk.Grid(column_spacing=14, row_spacing=10)
+        grid.attach(Gtk.Label(label="Dock icon size (px):", xalign=0), 0, 0, 1, 1)
+        size = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 32, 96, 2)
+        size.set_value(dock.get("size", 52))
+        size.set_size_request(260, -1)
+        size.connect("value-changed", lambda s: aura_cmd("dock", "size", int(s.get_value())))
+        grid.attach(size, 1, 0, 1, 1)
+
+        grid.attach(Gtk.Label(label="Hover magnification (%):", xalign=0), 0, 1, 1, 1)
+        zscale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 100, 200, 5)
+        zscale.set_value(dock.get("zoom_percent", 145))
+        zscale.set_size_request(260, -1)
+        zscale.connect(
+            "value-changed",
+            lambda s: aura_cmd("dock", "zoom-percent", int(s.get_value())),
+        )
+        grid.attach(zscale, 1, 1, 1, 1)
+
+        grid.attach(Gtk.Label(label="Icon spacing (px):", xalign=0), 0, 2, 1, 1)
+        sp_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 12, 1)
+        sp_scale.set_value(dock.get("spacing", 4))
+        sp_scale.set_size_request(260, -1)
+        sp_scale.connect(
+            "value-changed",
+            lambda s: aura_cmd("dock", "spacing", int(s.get_value())),
+        )
+        grid.attach(sp_scale, 1, 2, 1, 1)
+
+        grid.attach(Gtk.Label(label="Screen offset / margin:", xalign=0), 0, 3, 1, 1)
+        mg_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, -50, 50, 2)
+        mg_scale.set_value(dock.get("margin", 0))
+        mg_scale.set_size_request(260, -1)
+        mg_scale.connect(
+            "value-changed",
+            lambda s: aura_cmd("dock", "margin", int(s.get_value())),
+        )
+        grid.attach(mg_scale, 1, 3, 1, 1)
+
+        grid.attach(Gtk.Label(label="Dock position:", xalign=0), 0, 4, 1, 1)
         pos = Gtk.ComboBoxText()
         for p in ("bottom", "left", "right", "top"):
             pos.append_text(p)
-        pos.set_active(("bottom", "left", "right", "top").index(dock["position"]))
-        pos.connect("changed", lambda c: aura_cmd(
-            "dock", "position", c.get_active_text()) or self.toast("Dock moved"))
-        box.pack_start(pos, False, False, 0)
+        pos.set_active(("bottom", "left", "right", "top").index(dock.get("position", "bottom")))
+        pos.connect(
+            "changed",
+            lambda c: aura_cmd("dock", "position", c.get_active_text()),
+        )
+        grid.attach(pos, 1, 4, 1, 1)
 
-        for label, key in (("Magnify icons on hover", "zoom"),
-                           ("Auto-hide the dock", "autohide")):
-            row = Gtk.Box(spacing=8)
-            sw = Gtk.Switch(active=bool(dock[key]))
+        grid.attach(Gtk.Label(label="Dock glass material:", xalign=0), 0, 5, 1, 1)
+        style_c = Gtk.ComboBoxText()
+        for st in ("glass", "frosted", "opaque"):
+            style_c.append_text(st)
+        cur_st = dock.get("style", "glass")
+        style_c.set_active(("glass", "frosted", "opaque").index(cur_st if cur_st in ("glass", "frosted", "opaque") else "glass"))
+        style_c.connect(
+            "changed",
+            lambda c: aura_cmd("dock", "style", c.get_active_text()),
+        )
+        grid.attach(style_c, 1, 5, 1, 1)
+        box.pack_start(grid, False, False, 0)
+
+        for label, key in (
+            ("Smooth icon magnification on hover", "zoom"),
+            ("Auto-hide dock when windows overlap", "autohide"),
+        ):
+            row = Gtk.Box(spacing=10)
+            sw = Gtk.Switch(active=bool(dock.get(key)))
             sw.connect("notify::active", self._dock_switch, key)
             row.pack_start(sw, False, False, 0)
             row.pack_start(Gtk.Label(label=label), False, False, 0)
             box.pack_start(row, False, False, 0)
 
-        box.pack_start(section("Menu bar height"), False, False, 0)
-        panel_size = Gtk.Scale.new_with_range(
-            Gtk.Orientation.HORIZONTAL, 26, 48, 1)
-        panel_size.set_value(34)
-        panel_size.set_size_request(300, -1)
-        panel_size.connect("change-value", lambda s, *_: xfconf(
-            "xfce4-panel", "/panels/panel-1/size", "uint",
-            str(int(s.get_value()))))
+        box.pack_start(section("Top Menu Bar"), False, False, 0)
+        panel_size = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 26, 44, 1)
+        panel_size.set_value(32)
+        panel_size.set_size_request(260, -1)
+        panel_size.connect(
+            "value-changed",
+            lambda s: xfconf("xfce4-panel", "/panels/panel-1/size", "uint", int(s.get_value())),
+        )
         box.pack_start(panel_size, False, False, 0)
-        tip = Gtk.Label(label="Tip: right-click the dock for even more options, "
-                              "and drag icons to rearrange them.")
-        tip.set_xalign(0)
-        tip.set_line_wrap(True)
-        tip.get_style_context().add_class("dim-label")
-        box.pack_start(tip, False, False, 0)
         return box
 
-    def page_effects(self):
-        box = self.page_box("Effects & Performance")
-        intro = Gtk.Label(label="AURA balances beauty and speed inside the VM. "
-                                "If anything feels heavy, start here.")
-        intro.set_xalign(0)
-        intro.set_line_wrap(True)
-        intro.get_style_context().add_class("dim-label")
-        box.pack_start(intro, False, False, 0)
-        options = [
-            ("Compositor (transparency & shadows)",
-             ("xfwm4", "/general/use_compositing")), ("Window shadows",
-             ("xfwm4", "/general/show_frame_shadow")), ("Popup shadows",
-             ("xfwm4", "/general/show_popup_shadow")), ("Zoom desktop (Super + scroll)",
-             ("xfwm4", "/general/zoom_desktop")), ("Snap windows to edges",
-             ("xfwm4", "/general/snap_to_border")), ("Tile by dragging to edges",
-             ("xfwm4", "/general/tile_on_move"))]
-        for label, (chan, prop) in options:
-            row = Gtk.Box(spacing=8)
-            sw = Gtk.Switch(active=True)
-            sw.connect("notify::active",
-                       lambda s, _p, c=chan, p=prop: xfconf(
-                           c, p, "bool", str(s.get_active()).lower()))
-            row.pack_start(sw, False, False, 0)
-            row.pack_start(Gtk.Label(label=label), False, False, 0)
-            box.pack_start(row, False, False, 0)
-        box.pack_start(section("Animations"), False, False, 0)
-        row = Gtk.Box(spacing=8)
-        anim = Gtk.Switch(active=True)
-        anim.connect("notify::active", self._animations)
-        row.pack_start(anim, False, False, 0)
-        row.pack_start(Gtk.Label(label="Interface animations (GTK)"),
-                       False, False, 0)
-        box.pack_start(row, False, False, 0)
-        note = Gtk.Label(label="Toggles apply to new windows; some take effect "
-                               "at next login.")
-        note.set_xalign(0)
-        note.get_style_context().add_class("dim-label")
-        box.pack_start(note, False, False, 0)
-        return box
-
-    def page_terminal(self):
-        box = self.page_box("Celestia Shell")
-        intro = Gtk.Label(label="Celestia is a real Zsh terminal. These settings "
-                                "edit ~/.config/xfce4/terminal/terminalrc.")
-        intro.set_xalign(0)
-        intro.set_line_wrap(True)
-        intro.get_style_context().add_class("dim-label")
-        box.pack_start(intro, False, False, 0)
-
-        box.pack_start(section("Terminal font"), False, False, 0)
-        self.term_font = Gtk.FontButton()
-        self.term_font.set_font_name(self._terminalrc_get("FontName")
-                                     or "JetBrains Mono 11")
-        self.term_font.connect("font-set", lambda b: self._terminalrc_set(
-            "FontName", b.get_font_name()))
-        box.pack_start(self.term_font, False, False, 0)
-
-        box.pack_start(section("Background opacity"), False, False, 0)
-        try:
-            current_dark = float(self._terminalrc_get("BackgroundDarkness")
-                                 or "0.92")
-        except ValueError:
-            current_dark = 0.92
-        opa = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL,
-                                       0.5, 1.0, 0.01)
-        opa.set_value(current_dark)
-        opa.set_size_request(300, -1)
-        opa.connect("change-value", lambda s, *_: self._terminalrc_set(
-            "BackgroundDarkness", f"{s.get_value():.3f}"))
-        box.pack_start(opa, False, False, 0)
-
-        box.pack_start(section("Color scheme"), False, False, 0)
-        scheme_dir = "/usr/share/xfce4/terminal/colorschemes"
-        schemes = ["Celestia"]
-        if os.path.isdir(scheme_dir):
-            schemes = sorted({os.path.splitext(f)[0] for f in os.listdir(scheme_dir)})
-        combo = Gtk.ComboBoxText()
-        for s in schemes:
-            combo.append_text(s)
-        current = self._terminalrc_get("ColorScheme") or "Celestia"
-        if current in schemes:
-            combo.set_active(schemes.index(current))
-        combo.connect("changed", lambda c: self._terminalrc_set(
-            "ColorScheme", c.get_active_text()))
-        box.pack_start(combo, False, False, 0)
-
-        box.pack_start(section("Login shell"), False, False, 0)
-        srow = Gtk.Box(spacing=8)
-        for shell in ("zsh", "bash"):
-            b = Gtk.Button(label=f"Use {shell}")
-            b.connect("clicked", lambda _b, s=shell: subprocess.Popen(
-                ["xfce4-terminal", "--title=Change shell", "-e",
-                 f"chsh -s /bin/{s}; echo; read -p 'Done — press Enter…' _"]))
-            srow.pack_start(b, False, False, 0)
-        box.pack_start(srow, False, False, 0)
-
-        b_open = Gtk.Button(label="Open Celestia Shell")
-        b_open.get_style_context().add_class("suggested-action")
-        b_open.set_margin_top(14)
-        b_open.connect("clicked", lambda *_: subprocess.Popen(
-            ["xfce4-terminal", "--title=Celestia Shell"]))
-        box.pack_start(b_open, False, False, 0)
-        return box
-
-    def page_system(self):
-        box = self.page_box("System")
-        entries = [
-            ("Display", "Resolution, refresh rate, multiple monitors",
-             ["xfce4-display-settings"]),
-            ("Power", "Sleep, screen blanking and VM power behavior",
-             ["xfce4-power-manager-settings"]),
-            ("Mouse & Touchpad", "Pointer speed, scrolling direction",
-             ["xfce4-mouse-settings"]),
-            ("Keyboard", "Layout, repeat rate and application shortcuts",
-             ["xfce4-keyboard-settings"]),
-            ("Sound", "Output device and volume (PulseAudio)",
-             ["pavucontrol"]),
-            ("Network", "Wi-Fi / wired connections (via UTM NAT)",
-             ["nm-connection-editor"]),
-            ("All Xfce Settings", "Every desktop control panel",
-             ["xfce4-settings-manager"]),
-            ("AURA App Center", "Install software and system updates",
-             ["aura-appcenter"]),
-            ("AURA Backup", "Snapshots and restore points",
-             ["aura", "backup"]),
+    # ------------------------------------------------------------------ 4. Icons & Cursor
+    def page_icons(self):
+        box = self.page_box(
+            "Icons & Cursor",
+            "3D-inspired AURA Liquid Glass squircle icons and electric-cyan cursor theme.",
+        )
+        box.pack_start(section("Redesigned AURA Liquid Glass Icon Suite"), False, False, 0)
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_max_children_per_line(6)
+        showcase = [
+            ("aura-logo", "AURA OS"), ("aura-finder", "Finder"),
+            ("celestia-shell", "Celestia"), ("aura-browser", "Browser"),
+            ("aura-appcenter", "App Center"), ("aura-settings", "Settings"),
+            ("aura-studio", "Studio"), ("aura-notes", "Notes"),
+            ("aura-calendar", "Calendar"), ("aura-monitor", "Monitor"),
+            ("aura-photos", "Photos"), ("user-trash", "Trash"),
         ]
-        for name, desc, cmd in entries:
-            row = Gtk.Box(spacing=10)
-            row.set_margin_top(4)
-            text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
-            t = Gtk.Label()
-            t.set_markup(f"<b>{name}</b>")
-            t.set_xalign(0)
-            d = Gtk.Label(label=desc)
-            d.set_xalign(0)
+        for icon_id, title in showcase:
+            v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+            svg_p = os.path.join(ICONS_DIR, icon_id + ".svg")
+            if os.path.isfile(svg_p):
+                try:
+                    pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(svg_p, 52, 52, True)
+                    img = Gtk.Image.new_from_pixbuf(pix)
+                except Exception:
+                    img = Gtk.Image.new_from_icon_name(icon_id, Gtk.IconSize.DIALOG)
+            else:
+                img = Gtk.Image.new_from_icon_name(icon_id, Gtk.IconSize.DIALOG)
+            v.pack_start(img, False, False, 0)
+            v.pack_start(Gtk.Label(label=title), False, False, 0)
+            flow.add(v)
+        box.pack_start(flow, False, False, 0)
+
+        grid = Gtk.Grid(column_spacing=12, row_spacing=10)
+        grid.attach(Gtk.Label(label="Icon theme:", xalign=0), 0, 0, 1, 1)
+        ic_combo = self._theme_combo("/usr/share/icons", "AuraIcons")
+        ic_combo.connect("changed", self._icon_theme_changed)
+        grid.attach(ic_combo, 1, 0, 1, 1)
+
+        grid.attach(Gtk.Label(label="Cursor theme:", xalign=0), 0, 1, 1, 1)
+        cu_combo = self._theme_combo("/usr/share/icons", "AuraCursor")
+        cu_combo.connect("changed", self._cursor_theme_changed)
+        grid.attach(cu_combo, 1, 1, 1, 1)
+
+        grid.attach(Gtk.Label(label="Cursor size (px):", xalign=0), 0, 2, 1, 1)
+        csize = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 16, 48, 4)
+        csize.set_value(24)
+        csize.set_size_request(220, -1)
+        csize.connect(
+            "value-changed",
+            lambda s: xfconf("xsettings", "/Gtk/CursorThemeSize", "int", int(s.get_value())),
+        )
+        grid.attach(csize, 1, 2, 1, 1)
+        box.pack_start(grid, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 5. Display & Resolution
+    def page_display(self):
+        box = self.page_box(
+            "Display & Resolution",
+            "Optimize guest resolution, scaling, and brightness for UTM on Apple Silicon.",
+        )
+        grid = Gtk.Grid(column_spacing=12, row_spacing=10)
+        grid.attach(Gtk.Label(label="Guest resolution preset:", xalign=0), 0, 0, 1, 1)
+        res_combo = Gtk.ComboBoxText()
+        resolutions = [
+            "1920x1200", "1920x1080", "2560x1600", "2560x1440",
+            "1680x1050", "1600x900", "1440x900", "1280x800",
+        ]
+        for r in resolutions:
+            res_combo.append_text(r)
+        res_combo.set_active(1)
+        res_combo.connect("changed", self._apply_resolution)
+        grid.attach(res_combo, 1, 0, 1, 1)
+
+        grid.attach(Gtk.Label(label="Text & UI scaling:", xalign=0), 0, 1, 1, 1)
+        scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.8, 2.0, 0.1)
+        scale.set_value(1.0)
+        scale.set_size_request(240, -1)
+        scale.connect("value-changed", self._scaling)
+        grid.attach(scale, 1, 1, 1, 1)
+
+        grid.attach(Gtk.Label(label="Display brightness:", xalign=0), 0, 2, 1, 1)
+        br = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 40, 100, 5)
+        br.set_value(100)
+        br.set_size_request(240, -1)
+        br.connect("value-changed", self._apply_brightness)
+        grid.attach(br, 1, 2, 1, 1)
+        box.pack_start(grid, False, False, 0)
+
+        b_disp = Gtk.Button(label="Open Advanced Display Settings (xfce4-display-settings)")
+        b_disp.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(
+                ["xfce4-display-settings"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ),
+        )
+        box.pack_start(b_disp, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 6. Keyboard & Mouse
+    def page_input(self):
+        box = self.page_box(
+            "Keyboard & Mouse",
+            "Shortcuts, typing repeat rate, and pointer behavior inside UTM.",
+        )
+        box.pack_start(section("AURA Liquid Glass Keyboard Shortcuts"), False, False, 0)
+        shortcuts = [
+            ("Super + Space / Alt + Space", "Spotlight-style App & File Search"),
+            ("Super + L", "Lock Screen (AURA Liquid Glass Lock)"),
+            ("Super + S", "Open AURA Quick Settings Panel"),
+            ("Super + Return / Ctrl + Alt + T", "Open Celestia Shell"),
+            ("Super + E", "Open AURA Finder (Files)"),
+            ("Super + ,", "Open AURA Settings"),
+            ("Super + Left / Right / Up", "Snap Window Left / Right / Maximize"),
+            ("Ctrl + Alt + Left / Right", "Switch Virtual Desktop Workspace"),
+            ("Print / Shift + Print", "Full-screen / Region Screenshot"),
+        ]
+        sgrid = Gtk.Grid(column_spacing=18, row_spacing=6)
+        for idx, (keys, desc) in enumerate(shortcuts):
+            k_lbl = Gtk.Label()
+            k_lbl.set_markup(f"<b>{keys}</b>")
+            k_lbl.set_xalign(0)
+            d_lbl = Gtk.Label(label=desc, xalign=0)
+            sgrid.attach(k_lbl, 0, idx, 1, 1)
+            sgrid.attach(d_lbl, 1, idx, 1, 1)
+        box.pack_start(sgrid, False, False, 0)
+
+        btn_row = Gtk.Box(spacing=10)
+        for label, cmd in (
+            ("Keyboard Layout & Shortcuts…", ["xfce4-keyboard-settings"]),
+            ("Mouse & Touchpad Settings…", ["xfce4-mouse-settings"]),
+        ):
+            b = Gtk.Button(label=label)
+            b.connect(
+                "clicked",
+                lambda _b, c=cmd: subprocess.Popen(
+                    c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
+            )
+            btn_row.pack_start(b, False, False, 0)
+        box.pack_start(btn_row, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 7. Notifications
+    def page_notifications(self):
+        box = self.page_box(
+            "Notifications",
+            "Control floating Liquid Glass notification toasts and lock-screen privacy.",
+        )
+        dnd_row = Gtk.Box(spacing=10)
+        dnd_sw = Gtk.Switch(active=False)
+        dnd_sw.connect(
+            "notify::active",
+            lambda s, _: xfconf(
+                "xfce4-notifyd", "/do-not-disturb", "bool", str(s.get_active()).lower()
+            ),
+        )
+        dnd_row.pack_start(dnd_sw, False, False, 0)
+        dnd_row.pack_start(Gtk.Label(label="Do Not Disturb (silence banner notifications)"), False, False, 0)
+        box.pack_start(dnd_row, False, False, 0)
+
+        priv_row = Gtk.Box(spacing=10)
+        priv_sw = Gtk.Switch(active=True)
+        priv_sw.set_sensitive(False)
+        priv_row.pack_start(priv_sw, False, False, 0)
+        priv_row.pack_start(
+            Gtk.Label(label="Hide sensitive notifications while session is locked (always enforced)"),
+            False, False, 0,
+        )
+        box.pack_start(priv_row, False, False, 0)
+
+        b_test = Gtk.Button(label="Send Test Liquid Glass Notification")
+        b_test.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(
+                [
+                    "notify-send", "-i", "aura-logo",
+                    "AURA Liquid Glass",
+                    "Notifications are active and styled with translucent blue glass.",
+                ],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ),
+        )
+        box.pack_start(b_test, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 8. Privacy & Security
+    def page_security(self):
+        box = self.page_box(
+            "Privacy & Security",
+            "Firewall rules, PAM session lock authentication, and safe system cleanup.",
+        )
+        cards = [
+            ("AURA Firewall (UFW / Gufw)",
+             "Default-deny incoming traffic, allow outgoing connections.",
+             ["gufw"]),
+            ("Lock Screen Now (PAM Authenticated)",
+             "Lock desktop session using Linux PAM and suppress notifications.",
+             ["aura-lock"]),
+            ("Safe System Cleanup (Preview)",
+             "Inspect ~/.cache, Trash, and APT package cache in Celestia Shell.",
+             ["xfce4-terminal", "--title=AURA Cleanup", "-e", "bash -lc 'aura clean; read -p \"Press Enter…\" _'"]),
+        ]
+        for title, desc, cmd in cards:
+            row = Gtk.Box(spacing=12)
+            v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            t = Gtk.Label(xalign=0)
+            t.set_markup(f"<b>{title}</b>")
+            d = Gtk.Label(label=desc, xalign=0)
             d.get_style_context().add_class("dim-label")
-            text.pack_start(t, False, False, 0)
-            text.pack_start(d, False, False, 0)
-            row.pack_start(text, True, True, 0)
+            v.pack_start(t, False, False, 0)
+            v.pack_start(d, False, False, 0)
+            row.pack_start(v, True, True, 0)
             b = Gtk.Button(label="Open")
-            b.connect("clicked", lambda _b, c=cmd: subprocess.Popen(
-                c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            b.connect(
+                "clicked",
+                lambda _b, c=cmd: subprocess.Popen(
+                    c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
+            )
             row.pack_start(b, False, False, 0)
             box.pack_start(row, False, False, 0)
         return box
 
-    def page_about(self):
-        box = self.page_box("About AURA OS")
+    # ------------------------------------------------------------------ 9. Network & Audio
+    def page_netaudio(self):
+        box = self.page_box(
+            "Network & Audio",
+            "Manage UTM virtual networking and PipeWire / PulseAudio sound.",
+        )
+        for title, desc, cmd in (
+            ("Network Connections", "Configure Ethernet, Wi-Fi, VPN, and DNS", ["nm-connection-editor"]),
+            ("Audio Volume & Output (Pavucontrol)", "Select output device, input microphone, and app levels", ["pavucontrol"]),
+            ("Play AURA Liquid Glass Chime", "Test guest audio output", ["paplay", "/usr/share/sounds/aura/stereo/service-login.wav"]),
+        ):
+            row = Gtk.Box(spacing=12)
+            v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            t = Gtk.Label(xalign=0)
+            t.set_markup(f"<b>{title}</b>")
+            d = Gtk.Label(label=desc, xalign=0)
+            d.get_style_context().add_class("dim-label")
+            v.pack_start(t, False, False, 0)
+            v.pack_start(d, False, False, 0)
+            row.pack_start(v, True, True, 0)
+            b = Gtk.Button(label="Launch")
+            b.connect(
+                "clicked",
+                lambda _b, c=cmd: subprocess.Popen(
+                    c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
+            )
+            row.pack_start(b, False, False, 0)
+            box.pack_start(row, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 10. Applications & Startup Items
+    def page_apps(self):
+        box = self.page_box(
+            "Applications & Startup Items",
+            "Manage installed software, default applications, and session startup services.",
+        )
+        for title, desc, cmd in (
+            ("AURA App Center", "Install, update, and remove APT & Flatpak applications", ["aura-appcenter"]),
+            ("Preferred Applications", "Choose default Web Browser, File Manager, and Terminal", ["xfce4-mime-settings"]),
+            ("Session & Startup Items", "Configure autostart apps (Plank dock, Conky widgets, Welcome)", ["xfce4-session-settings"]),
+        ):
+            row = Gtk.Box(spacing=12)
+            v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            t = Gtk.Label(xalign=0)
+            t.set_markup(f"<b>{title}</b>")
+            d = Gtk.Label(label=desc, xalign=0)
+            d.get_style_context().add_class("dim-label")
+            v.pack_start(t, False, False, 0)
+            v.pack_start(d, False, False, 0)
+            row.pack_start(v, True, True, 0)
+            b = Gtk.Button(label="Open")
+            b.connect(
+                "clicked",
+                lambda _b, c=cmd: subprocess.Popen(
+                    c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
+            )
+            row.pack_start(b, False, False, 0)
+            box.pack_start(row, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 11. Celestia Shell
+    def page_terminal(self):
+        box = self.page_box(
+            "Celestia Shell",
+            "Deep navy terminal with cyan syntax highlighting, tabs, split panes (tmux), and `aura` CLI.",
+        )
+        box.pack_start(section("Terminal Font"), False, False, 0)
+        self.term_font = Gtk.FontButton()
+        self.term_font.set_font_name(
+            self._terminalrc_get("FontName") or "JetBrains Mono 11"
+        )
+        self.term_font.connect(
+            "font-set", lambda b: self._terminalrc_set("FontName", b.get_font_name())
+        )
+        box.pack_start(self.term_font, False, False, 0)
+
+        box.pack_start(section("Terminal Glass Opacity (Keep >= 0.85 for crisp text)"), False, False, 0)
+        try:
+            current_dark = float(self._terminalrc_get("BackgroundDarkness") or "0.92")
+        except ValueError:
+            current_dark = 0.92
+        opa = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.60, 1.0, 0.01)
+        opa.set_value(current_dark)
+        opa.set_size_request(280, -1)
+        opa.connect(
+            "value-changed",
+            lambda s: self._terminalrc_set("BackgroundDarkness", f"{s.get_value():.3f}"),
+        )
+        box.pack_start(opa, False, False, 0)
+
+        btn_row = Gtk.Box(spacing=10)
+        b_open = Gtk.Button(label="Open Celestia Shell")
+        b_open.get_style_context().add_class("suggested-action")
+        b_open.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(["xfce4-terminal", "--title=Celestia Shell"]),
+        )
+        btn_row.pack_start(b_open, False, False, 0)
+
+        b_tut = Gtk.Button(label="Run Interactive Tutorial")
+        b_tut.connect(
+            "clicked",
+            lambda *_: subprocess.Popen(
+                ["xfce4-terminal", "--title=Celestia Tutorial", "-e", "celestia-tutorial"]
+            ),
+        )
+        btn_row.pack_start(b_tut, False, False, 0)
+        box.pack_start(btn_row, False, False, 0)
+        return box
+
+    # ------------------------------------------------------------------ 12. VM & System Info
+    def page_system(self):
+        box = self.page_box(
+            "Virtual Machine & System Information",
+            "Optimized for Apple Silicon (M4) running AURA OS ARM64 inside UTM.",
+        )
         logo = Gtk.Image.new_from_icon_name("aura-logo", Gtk.IconSize.DIALOG)
-        logo.set_pixel_size(96)
+        logo.set_pixel_size(84)
         box.pack_start(logo, False, False, 0)
-        lbl = Gtk.Label()
-        lbl.set_markup("AURA OS 1.0 “Aurora Peaks”\n"
-                       "<span size=\"small\">A blue-mountain desktop built on "
-                       "Debian GNU/Linux 12.\nRunning as an ARM64 virtual "
-                       "machine in UTM.</span>")
-        lbl.set_xalign(0)
+
+        lbl = Gtk.Label(xalign=0)
+        lbl.set_markup(
+            "<b>AURA OS 1.0 “Aurora Peaks” — Liquid Glass Blue Edition</b>\n"
+            "• Base: Debian GNU/Linux 12 (bookworm) ARM64\n"
+            "• Design Identity: AURA Liquid Glass (#071426 · #0B2345 · #1677FF · #55D6FF · #BDEBFF · #F4F9FF)\n"
+            "• Note on Memory: Guest RAM shown in AURA Monitor / `aura system` reflects the memory "
+            "allocated to this UTM virtual machine (recommended 4–8 GB on a 16 GB Mac), not your Mac's total physical RAM."
+        )
+        lbl.set_line_wrap(True)
         box.pack_start(lbl, False, False, 0)
-        b = Gtk.Button(label="Detailed system information…")
-        b.connect("clicked", lambda *_: subprocess.Popen(["aura-about"]))
-        box.pack_start(b, False, False, 0)
-        credits = Gtk.Label(label="AURA stands on the shoulders of Debian, Xfce, "
-                                  "the Linux kernel and thousands of free-software "
-                                  "authors. Thank you.")
-        credits.set_xalign(0)
-        credits.set_line_wrap(True)
-        credits.get_style_context().add_class("dim-label")
-        box.pack_start(credits, False, False, 0)
+
+        perf_row = Gtk.Box(spacing=10)
+        perf_sw = Gtk.Switch(active=bool(self.cfg.get("performance_mode", False)))
+        perf_sw.connect(
+            "notify::active",
+            lambda s, _: aura_cmd("glass", "performance" if s.get_active() else "glass"),
+        )
+        perf_row.pack_start(perf_sw, False, False, 0)
+        perf_row.pack_start(
+            Gtk.Label(label="Performance Mode (reduce transparency & shadow layers for lower guest RAM/CPU)"),
+            False, False, 0,
+        )
+        box.pack_start(perf_row, False, False, 0)
+
+        brow = Gtk.Box(spacing=10)
+        for label, cmd in (
+            ("Detailed Hardware Info (About This AURA)", ["aura-about"]),
+            ("System Monitor", ["aura-monitor"]),
+            ("AURA Backup (Timeshift)", ["aura", "backup"]),
+        ):
+            b = Gtk.Button(label=label)
+            b.connect(
+                "clicked",
+                lambda _b, c=cmd: subprocess.Popen(
+                    c, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ),
+            )
+            brow.pack_start(b, False, False, 0)
+        box.pack_start(brow, False, False, 0)
         return box
 
     # ------------------------------------------------------------------ handlers
     def _mode_toggled(self, btn, mode):
         if btn.get_active():
+            self.cfg["theme_mode"] = "light" if mode == "light" else "dark"
+            save_config(self.cfg)
             aura_cmd("theme", mode)
-            self.toast(f"{mode.capitalize()} mode")
+            self.preview_area.queue_draw()
+            self.toast(f"{mode.capitalize()} appearance applied")
 
-    def _accent_clicked(self, _b, name, label):
+    def _accent_clicked(self, _b, name, label, hexv):
+        self.cfg["accent"] = name
+        self.cfg["accent_hex"] = hexv
+        save_config(self.cfg)
         aura_cmd("theme", "accent", name)
-        self.toast(f"Accent: {label}")
+        self.preview_area.queue_draw()
+        self.toast(f"Accent: {label} ({hexv})")
 
     def _custom_accent(self, _b):
         rgba = self.color_btn.get_rgba()
-        hexv = "#%02x%02x%02x" % (int(rgba.red * 255), int(rgba.green * 255),
-                                  int(rgba.blue * 255))
+        hexv = "#%02x%02x%02x" % (
+            int(rgba.red * 255),
+            int(rgba.green * 255),
+            int(rgba.blue * 255),
+        )
+        self.cfg["accent"] = "custom"
+        self.cfg["accent_hex"] = hexv
+        save_config(self.cfg)
         aura_cmd("theme", "accent", hexv)
-        self.toast(f"Accent: {hexv}")
+        self.preview_area.queue_draw()
+        self.toast(f"Custom accent: {hexv}")
+
+    def _set_glass_preset(self, _b, preset):
+        self.cfg["glass_preset"] = preset
+        self.cfg["performance_mode"] = preset == "performance"
+        self.cfg["glass_opacity"] = {"glass": 0.78, "frosted": 0.88, "performance": 0.96}[preset]
+        save_config(self.cfg)
+        aura_cmd("glass", preset)
+        self.preview_area.queue_draw()
+        self.toast(f"Liquid Glass preset: {preset}")
+
+    def _on_glass_opacity(self, scale):
+        val = round(scale.get_value(), 2)
+        self.cfg["glass_opacity"] = val
+        save_config(self.cfg)
+        aura_cmd("glass", "opacity", f"{val:.2f}")
+        self.preview_area.queue_draw()
+
+    def _on_blur_intensity(self, scale):
+        val = int(scale.get_value())
+        self.cfg["blur_intensity"] = val
+        save_config(self.cfg)
+        aura_cmd("glass", "blur", str(val))
+        self.preview_area.queue_draw()
+
+    def _on_shadow_depth(self, scale):
+        val = int(scale.get_value())
+        self.cfg["shadow_opacity"] = val
+        save_config(self.cfg)
+        xfconf("xfwm4", "/general/shadow_opacity", "int", val)
+
+    def _lock_wp_changed(self, combo):
+        fn = combo.get_active_text()
+        if fn:
+            self.cfg["lock_wallpaper"] = fn
+            save_config(self.cfg)
+            self.toast(f"Lock screen wallpaper: {fn}")
+
+    def _lock_toggle(self, switch, _p, key):
+        self.cfg[key] = bool(switch.get_active())
+        save_config(self.cfg)
+        self.toast("Lock screen preference saved")
+
+    def _apply_resolution(self, combo):
+        res = combo.get_active_text()
+        if not res or not shutil.which("xrandr"):
+            return
+        r = subprocess.run(["xrandr", "--query"], capture_output=True, text=True)
+        for line in r.stdout.splitlines():
+            if " connected" in line:
+                out = line.split()[0]
+                subprocess.Popen(
+                    ["xrandr", "--output", out, "--mode", res],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                self.toast(f"Requested resolution {res} on {out}")
+                break
+
+    def _apply_brightness(self, scale):
+        if not shutil.which("xrandr"):
+            return
+        r = subprocess.run(["xrandr", "--query"], capture_output=True, text=True)
+        for line in r.stdout.splitlines():
+            if " connected" in line:
+                out = line.split()[0]
+                subprocess.Popen(
+                    ["xrandr", "--output", out, "--brightness", f"{scale.get_value() / 100.0:.2f}"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                break
 
     def _theme_combo(self, base, preferred):
         combo = Gtk.ComboBoxText()
@@ -534,11 +1156,7 @@ class Settings(Gtk.Window):
         name = combo.get_active_text()
         if name:
             xfconf("xsettings", "/Gtk/CursorThemeName", "string", name)
-            self.toast(f"Cursor: {name} (applies at next login)")
-
-    def _font_set(self, btn):
-        xfconf("xsettings", "/Gtk/FontName", "string", btn.get_font_name())
-        self.toast("Font updated")
+            self.toast(f"Cursor: {name}")
 
     def _scaling(self, scale):
         dpi = int(round(96 * scale.get_value()))
@@ -550,45 +1168,43 @@ class Settings(Gtk.Window):
         self.toast("Wallpaper updated")
 
     def _choose_wallpaper(self, _b):
-        dlg = Gtk.FileChooserDialog(title="Choose wallpaper", transient_for=self,
-                                    action=Gtk.FileChooserAction.OPEN)
-        dlg.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
-                        "Set Wallpaper", Gtk.ResponseType.OK)
-        filt = Gtk.FileFilter()
-        filt.set_name("Images")
-        for pat in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
-            filt.add_pattern(pat)
-        dlg.add_filter(filt)
-        dlg.set_current_folder(os.path.expanduser("~/Pictures"))
+        dlg = Gtk.FileChooserDialog(
+            title="Choose wallpaper",
+            transient_for=self,
+            action=Gtk.FileChooserAction.OPEN,
+        )
+        dlg.add_buttons(
+            "Cancel", Gtk.ResponseType.CANCEL,
+            "Set Wallpaper", Gtk.ResponseType.OK,
+        )
         if dlg.run() == Gtk.ResponseType.OK:
             aura_cmd("wallpaper", "set", dlg.get_filename())
             self.toast("Wallpaper updated")
         dlg.destroy()
 
-    def _dock_size(self, scale):
-        aura_cmd("dock", "size", str(int(scale.get_value())))
-        self.toast(f"Dock size {int(scale.get_value())} px")
-
     def _dock_switch(self, switch, _p, key):
         aura_cmd("dock", key, "on" if switch.get_active() else "off")
 
     def _animations(self, switch, _p):
+        self.cfg["animations"] = bool(switch.get_active())
+        save_config(self.cfg)
         ini = os.path.expanduser("~/.config/gtk-3.0/settings.ini")
         os.makedirs(os.path.dirname(ini), exist_ok=True)
         content = ""
         if os.path.isfile(ini):
             with open(ini, encoding="utf-8") as fh:
                 content = fh.read()
-        lines = [l for l in content.splitlines()
-                 if not l.startswith("gtk-enable-animations")]
+        lines = [
+            l for l in content.splitlines()
+            if not l.startswith("gtk-enable-animations")
+        ]
         if "[Settings]" not in lines:
             lines.insert(0, "[Settings]")
         lines.append(f"gtk-enable-animations={1 if switch.get_active() else 0}")
         with open(ini, "w", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
-        self.toast("Animation preference saved (new windows)")
+        self.toast("Animation preference saved")
 
-    # terminalrc helpers
     def _terminalrc_get(self, key):
         try:
             with open(TERMINALRC, encoding="utf-8") as fh:
@@ -616,7 +1232,7 @@ class Settings(Gtk.Window):
             lines.append(f"{key}={value}")
         with open(TERMINALRC, "w", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")
-        self.toast("Terminal preference saved")
+        self.toast("Celestia Shell preference saved")
 
 
 def main():

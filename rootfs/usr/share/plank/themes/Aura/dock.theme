@@ -1,31 +1,33 @@
-# AURA OS — Plank dock theme (glassy midnight blue)
+# AURA OS — Plank dock theme (AURA Liquid Glass floating blue shelf)
+# Palette: Midnight Navy #071426, Deep Ocean #0B2345, AURA Blue #1677FF,
+#          Electric Cyan #55D6FF, Frosted White #F4F9FF
 [PlankTheme]
-TopRoundness=16
-BottomRoundness=16
+TopRoundness=20
+BottomRoundness=20
 LineWidth=1
-OuterStrokeColor=255;;255;;255;;80
-FillStartColor=22;;42;;78;;205
-FillEndColor=11;;23;;47;;195
-InnerStrokeColor=140;;180;;240;;70
+OuterStrokeColor=85;;214;;255;;105
+FillStartColor=11;;35;;69;;208
+FillEndColor=7;;20;;38;;226
+InnerStrokeColor=244;;249;;255;;72
 
 [PlankDockTheme]
-HorizPadding=8
-TopPadding=5
-BottomPadding=5
-ItemPadding=3
+HorizPadding=10
+TopPadding=6
+BottomPadding=7
+ItemPadding=4
 IndicatorSize=6
-IconShadowSize=8
+IconShadowSize=9
 UrgentBounceHeight=1.666666
 LaunchBounceHeight=0.625
 FadeOpacity=1
-ClickTime=300
-UrgentBounceTime=600
-LaunchBounceTime=600
-ActiveTime=300
-SlideTime=300
-FadeTime=250
-HideTime=250
-GlowSize=30
+ClickTime=280
+UrgentBounceTime=550
+LaunchBounceTime=550
+ActiveTime=280
+SlideTime=260
+FadeTime=220
+HideTime=220
+GlowSize=32
 GlowTime=10000
 GlowPulseTime=2000
-BadgeColor=47;;127;;224;;255
+BadgeColor=22;;119;;255;;255

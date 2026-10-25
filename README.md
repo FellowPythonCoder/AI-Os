@@ -1,13 +1,15 @@
-# 🏔️ AURA OS
+# 🏔️ AURA OS — Liquid Glass Blue Edition
 
 ### A blue-mountain desktop operating system for Apple Silicon
 
 **AURA OS** is a complete, bootable ARM64 operating system that runs in
 [UTM](https://mac.getutm.app/) on Apple Silicon Macs (developed for an M4
-with 16 GB). It pairs a polished, macOS-inspired desktop — top menu bar,
-magnifying dock, Spotlight-style search, glassy blue themes — with the real
-power of Debian GNU/Linux underneath: genuine package management, a full
-developer toolchain, and **Celestia Shell**, AURA's signature terminal.
+with 16 GB). Featuring the **AURA Liquid Glass** design identity —
+translucent blue glass surfaces (`#071426`, `#0B2345`, `#1677FF`, `#55D6FF`,
+`#BDEBFF`, `#F4F9FF`), 3D-inspired squircle icons, a floating glass dock,
+a PAM-authenticated mountain lock screen, and an interactive Liquid Glass
+Theme Editor — it pairs macOS-inspired elegance with the real power of
+Debian GNU/Linux underneath and **Celestia Shell**, AURA's signature terminal.
 
 > AURA is an independent project. It is not affiliated with Apple, and it
 > is not a website or a mockup — it's a real OS you boot.
@@ -20,12 +22,12 @@ developer toolchain, and **Celestia Shell**, AURA's signature terminal.
 
 | | |
 |---|---|
-| 🏔 **Identity** | Original blue-mountain logo, 4 wallpapers, custom GTK3/4 + xfwm4 themes (Light & Dark), icon theme, hand-drawn animated cursor theme, synthesized sound theme, Plymouth boot splash, GRUB theme, LightDM login |
-| 🖥️ **Desktop** | Xfce-based: top menu bar with global app menu, Plank dock with magnification & running indicators, 4 workspaces, window snapping/tiling, clipboard history, notifications, Spotlight-style search (`Super+Space`) |
-| ⌨️ **Celestia Shell** | Zsh terminal (syntax highlighting, autosuggestions, history search) + the **`aura`** CLI: `aura install`, `aura theme`, `aura wallpaper`, `aura doctor`, … and an interactive tutorial |
-| 🧩 **24 AURA apps** | Finder, Browser, Settings, App Center, Text, Studio, Notes, Calendar, Calculator, Monitor, Photos, Media, Archive, Screenshot, PDF, Transfer, Task Manager, Backup, Help, Welcome, About… every one launches a real program |
-| 📦 **App Center** | Curated catalog (56 apps, 10 categories incl. AI tools) on real **Debian APT** + **Flatpak/Flathub**, plus full-repository search, updates and removals — with live logs and password prompts |
-| 🎨 **Customization** | Accent colors (rewrite one CSS file → whole OS re-skins), wallpapers, dock size/position/zoom, effects, terminal font/opacity/scheme, icon & cursor themes — GUI *and* CLI, always in sync |
+| 🏔 **Liquid Glass Identity** | Original 3D blue-mountain logo, 8 coordinated wallpapers (incl. Liquid Waves, Cyan Horizon, Minimal Gradient & Lock Peaks), custom GTK3/4 + xfwm4 Liquid Glass themes (Light & Dark), 84 SVG 3D-inspired `AuraIcons`, animated `AuraCursor`, synthesized sound theme, Plymouth boot splash, GRUB theme, LightDM login |
+| 🔒 **PAM Lock Screen** | `aura-lock` (`Super+L`) — real Linux PAM (`libpam.so.0` + `PAM_DISALLOW_NULL_AUTHTOK`) session lock with mountain wallpaper, animated snow/light particles, large centered digital clock + date, glowing circular user avatar, translucent blue-glass password box, notification privacy (auto-DND while locked), and idle auto-lock |
+| 🖥️ **Desktop & Quick Settings** | Xfce-based: translucent 32px top menu bar with global app menu, floating `aura-quicksettings` control center (`Super+S`), Plank floating blue-glass dock with magnification & running indicators, 4 workspaces, window snapping/tiling, Spotlight-style search (`Super+Space`) |
+| ⌨️ **Celestia Shell** | Deep navy (`#071426`) Zsh terminal with electric-cyan (`#55D6FF`) syntax highlighting, tabs, `tmux` split panes (`panes`), autosuggestions, fuzzy history + the **`aura`** CLI (`aura glass`, `aura lock`, `aura theme`, `aura install`, `aura doctor`, …) |
+| 🧩 **26 AURA apps** | Finder, Browser, Settings, Quick Settings, Lock Screen, App Center, Text, Studio, Notes, Calendar, Calculator, Monitor, Photos, Media, Archive, Screenshot, PDF, Transfer, Task Manager, Backup, Firewall, Help, Welcome, About… every one launches a real program |
+| 🎨 **12-Section System Settings** | Interactive **Liquid Glass Theme Editor** with live Cairo preview, glass opacity & blur sliders, performance mode, wallpapers & lock screen config, dock & menu bar, icons & cursor, UTM display & brightness, keyboard/mouse, notifications, security, network/audio, startup items, Celestia Shell, and VM info |
 | 🛠️ **Developer-ready** | Git, Python 3, Node.js + npm, GCC/G++/CMake/GDB, tmux, ripgrep, SSH, curl preinstalled |
 | 🍎 **UTM-native** | ARM64 guest tools preinstalled (clipboard, display resize, shared folders), honest guest-vs-host RAM reporting, tuned for a 16 GB Mac |
 

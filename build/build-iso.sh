@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #  Build the AURA OS bootable live/installer ISO (ARM64) with Debian
 #  live-build. Must run on an ARM64 Debian/Ubuntu host (e.g. a Linux VM on
-#  your Mac, or the GitHub Actions ARM runner — see .github/workflows).
+#  your Mac via build/build-on-mac.sh, or the GitHub Actions ARM64 runner).
 #
 #  Usage:  sudo ./build/build-iso.sh
 #  Output: build/out/AURA-OS-1.0-arm64.iso
@@ -23,19 +23,23 @@ command -v lb >/dev/null || { echo "live-build not found: sudo apt install live-
 
 mkdir -p "$LIVE_DIR/config/package-lists" \
          "$LIVE_DIR/config/hooks/live" \
-         "$LIVE_DIR/config/includes.chroot" \
+         "$LIVE_DIR/config/includes.chroot/usr/share/aura" \
          "$OUT_DIR"
 
 echo "▸ Assembling live-build configuration…"
 
-# Package lists from the single source of truth
-cat "$REPO_DIR/build/packages/core.txt" \
-    "$REPO_DIR/build/packages/optional.txt" \
+# Core + live package list (comments and blank lines stripped for live-build)
+grep -Ev '^[[:space:]]*(#|$)' \
+    "$REPO_DIR/build/packages/core.txt" \
     "$REPO_DIR/build/packages/live.txt" \
     > "$LIVE_DIR/config/package-lists/aura.list.chroot"
 
-# Root filesystem overlay (the whole AURA personality)
+# Root filesystem overlay (the whole AURA Liquid Glass personality)
 rsync -a --delete "$REPO_DIR/rootfs/" "$LIVE_DIR/config/includes.chroot/"
+
+# Copy optional package list into chroot so the hook can install available ones tolerantly
+install -Dm644 "$REPO_DIR/build/packages/optional.txt" \
+    "$LIVE_DIR/config/includes.chroot/usr/share/aura/optional-packages.txt"
 
 # Calamares branding (graphical installer)
 install -d "$LIVE_DIR/config/includes.chroot/etc/calamares/branding/aura"
@@ -43,10 +47,19 @@ cp "$REPO_DIR/build/live/calamares/branding.desc" \
    "$REPO_DIR/build/live/calamares/show.qml" \
    "$LIVE_DIR/config/includes.chroot/etc/calamares/branding/aura/"
 
-# Chroot hook: finalize AURA inside the image
+# Chroot hook: install available optional packages + finalize AURA inside the image
 cat > "$LIVE_DIR/config/hooks/live/0500-aura.hook.chroot" <<'HOOK'
 #!/bin/sh
 set -e
+export DEBIAN_FRONTEND=noninteractive
+echo "AURA hook: installing available optional packages…"
+if [ -f /usr/share/aura/optional-packages.txt ]; then
+    for pkg in $(grep -Ev '^[[:space:]]*(#|$)' /usr/share/aura/optional-packages.txt); do
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
+            apt-get install -y --no-install-recommends "$pkg" || true
+        fi
+    done
+fi
 echo "AURA hook: finalizing system…"
 /usr/share/aura/finalize.sh --skip-boot --live || true
 # Point Calamares at the AURA branding
@@ -64,6 +77,11 @@ cd "$LIVE_DIR"
 # so re-running after a failure resumes in minutes, not from zero.
 lb clean >/dev/null 2>&1 || true
 
+KEYRING_OPT=()
+if [ -f /usr/share/keyrings/debian-archive-keyring.gpg ]; then
+    KEYRING_OPT=(--debootstrap-options "--keyring=/usr/share/keyrings/debian-archive-keyring.gpg")
+fi
+
 echo "▸ Configuring (Debian bookworm, arm64, grub-efi)…"
 lb config noauto \
     --mode debian \
@@ -71,6 +89,15 @@ lb config noauto \
     --architectures arm64 \
     --archive-areas "main contrib non-free-firmware" \
     --parent-archive-areas "main contrib non-free-firmware" \
+    --mirror-bootstrap "http://deb.debian.org/debian" \
+    --mirror-chroot "http://deb.debian.org/debian" \
+    --mirror-chroot-security "http://security.debian.org/debian-security" \
+    --mirror-binary "http://deb.debian.org/debian" \
+    --parent-mirror-bootstrap "http://deb.debian.org/debian" \
+    --parent-mirror-chroot "http://deb.debian.org/debian" \
+    --parent-mirror-chroot-security "http://security.debian.org/debian-security" \
+    --parent-mirror-binary "http://deb.debian.org/debian" \
+    "${KEYRING_OPT[@]}" \
     --binary-images iso-hybrid \
     --bootloaders grub-efi \
     --bootappend-live "boot=live components quiet splash loglevel=3 username=aura user-fullname=AURA hostname=aura-os locales=en_US.UTF-8 keyboard-layouts=us" \

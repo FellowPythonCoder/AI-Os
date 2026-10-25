@@ -2,7 +2,7 @@
 static char * xpm[] = {
 "4 8 2 1",
 "  c None",
-"a c #cddef0",
+"a c #cde4f8",
 "aaaa",
 "aaaa",
 "aaaa",
