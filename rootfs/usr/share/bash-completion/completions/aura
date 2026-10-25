@@ -1,7 +1,7 @@
 _aura() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
   if [[ $COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "help version fetch system apps open settings theme glass wallpaper dock lock install remove search update upgrade clean doctor tutorial backup session completion" -- "$cur") )
+    COMPREPLY=( $(compgen -W "help version fetch system apps open settings theme glass font wallpaper dock appbar launcher kali security lock install remove search update upgrade clean doctor tutorial backup session completion" -- "$cur") )
   fi
 }
 complete -F _aura aura
