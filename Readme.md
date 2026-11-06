@@ -1,3 +1,5 @@
+> **Current implementation:** Milestone 1 provides an unbuilt, unverified ARM64 NixOS live ISO definition only. See [MILESTONE-1.md](MILESTONE-1.md) for build and UTM test instructions. The desktop, installer, and features below are project goals, not implemented features.
+
 # 🏔️ AURA OS
 
 ### A new desktop experience. Inspired by the beauty of blue mountains.
