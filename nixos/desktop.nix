@@ -14,10 +14,11 @@ in {
   programs.hyprland.enable = true;
   services.greetd = {
     enable = true;
+    useTextGreeter = true;
     settings = {
       initial_session = { command = "${startAura}"; user = "nixos"; };
       default_session = {
-        command = "${pkgs.greetd.tuigreet}/bin/tuigreet --time --cmd ${startAura}";
+        command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd ${startAura}";
         user = "greeter";
       };
     };

@@ -1,3 +1,5 @@
+> **Apple Silicon Mac:** For the Docker build workflow, see [DOCKER-BUILD.md](DOCKER-BUILD.md).
+
 > **Current implementation:** An experimental, unbuilt ARM64 NixOS live desktop definition. See [DESKTOP-STATUS.md](DESKTOP-STATUS.md) for major missing features and [MILESTONE-1.md](MILESTONE-1.md) for build instructions. It is not a verified or installable release.
 
 # 🏔️ AURA OS

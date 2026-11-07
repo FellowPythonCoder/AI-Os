@@ -20,7 +20,8 @@ commands and paths; some features will not work on NixOS without adaptation.
 The live user is passwordless and must not be treated as a secure install.
 Do not use this ISO for production or to install onto a disk.
 
-Build and UTM instructions are in [MILESTONE-1.md](MILESTONE-1.md), but the
+Mac Docker build instructions are in [DOCKER-BUILD.md](DOCKER-BUILD.md).
+Native Linux build and UTM instructions are in [MILESTONE-1.md](MILESTONE-1.md), but the
 expected result is now an **attempted graphical session**, rather than the
 console-only milestone described there. The build needs access to GitHub,
 Nix's binary cache and the shell's Quickshell source at git.outfoxxed.me.
