@@ -1,14 +1,15 @@
+> **Superseded:** the default target now attempts an experimental desktop, not the minimal image documented below. See [DESKTOP-STATUS.md](DESKTOP-STATUS.md) for limitations. The build commands still apply.
+
 # auraOS — milestone 1: minimal ARM64 UEFI live ISO
 
-**Status: source prepared; not built or boot-tested.** This milestone is a
-console-only NixOS installer environment, not the finished auraOS desktop. It
-has no Hyprland, Caelestia, graphical installer, wallpaper, or disk setup
+**Status: source prepared; not built or boot-tested.** The current target
+attempts a live desktop but has no graphical installer, wallpaper, or disk setup
 wizard yet. Do not use it to install a finished desktop. Hardware acceleration,
 boot time and RAM targets have not been measured. Those belong to later
 milestones, after this image has been built and tested in UTM.
 
-The flake pins nixpkgs to commit `b6018f87da91d19d0ab4cf979885689b469cdd41`
-(the nixos-25.11 branch revision selected for this milestone). The build script
+The flake pins nixpkgs to commit `1c89083e451e891152365b799595cf7790a43325`
+(the revision selected by the pinned Caelestia shell). The build script
 resolves that exact revision without writing a lock file. Commit pinning avoids
 moving branch inputs; a checked-in lock file and pinned desktop inputs are
 still needed as the flake grows. The upstream minimal installation CD module
@@ -62,7 +63,7 @@ interpreted as a successful release. Nix downloads inputs on the first run.
 3. Start the VM and choose the default NixOS boot entry. If the ISO does not
    start, check that the VM is ARM64, uses UEFI, and actually boots from the
    attached CD/DVD. UTM's UI labels vary by version.
-4. Expect an automatically logged-in `nixos` text console, **not a GUI**.
+4. The image attempts an automatically logged-in graphical session. If it fails, try switching to a text console (Ctrl+Alt+F2) and log in as `nixos` with an empty password.
    Check:
 
    ```sh
@@ -74,7 +75,7 @@ interpreted as a successful release. Nix downloads inputs on the first run.
    systemctl is-system-running
    ```
 
-   The last command may report `degraded`; inspect failed units with
+   Run these commands in a terminal or text console. The last command may report `degraded`; inspect failed units with
    `systemctl --failed` and logs with `journalctl -b -p warning`. Network
    reachability depends on the VM's network configuration. Power off with
    `sudo poweroff`.
